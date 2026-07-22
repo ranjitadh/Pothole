@@ -1,22 +1,40 @@
 {
   "expo": {
-    "name": "PotholeReactNative",
+    "name": "Pothole Watcher",
     "slug": "PotholeReactNative",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "potholereactnative",
+    "scheme": "pothole",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.pothole.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We need your location to report potholes near you.",
+        "NSCameraUsageDescription": "We need camera access to take photos of potholes.",
+        "NSPhotoLibraryUsageDescription": "We need photo library access to attach pothole images."
+      }
     },
     "android": {
+      "package": "com.pothole.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "INTERNET",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -33,10 +51,41 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Pothole Watcher to use your location to report nearby potholes.",
+          "locationWhenInUsePermission": "Allow Pothole Watcher to use your location to report nearby potholes."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ea580c"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Pothole Watcher to access your photos to attach pothole images.",
+          "cameraPermission": "Allow Pothole Watcher to use the camera to take photos of potholes."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
     }
   }
 }
+
