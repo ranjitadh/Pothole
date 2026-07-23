@@ -48,7 +48,7 @@ export async function sendTestPushNotification() {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Pothole Watcher Alert! 🚨",
+        title: "Pothole Alert! 🚨",
         body: "Push notifications are successfully configured and working!",
         data: { test: true },
       },

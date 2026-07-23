@@ -67,7 +67,7 @@ export function PostCard({ post }: PostCardProps) {
     try {
       const appLink = 'https://expo.dev/artifacts/eas/pothole-watcher-app';
       await Share.share({
-        message: `Check out this road hazard report on Pothole Watcher app: ${appLink}\n\n"${post.text || 'Pothole alert!'}"`,
+        message: `Check out this road hazard report on Pothole app: ${appLink}\n\n"${post.text || 'Pothole alert!'}"`,
       });
     } catch (error: any) {
       Alert.alert('Error', error.message);

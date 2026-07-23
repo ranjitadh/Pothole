@@ -50,7 +50,7 @@ describe('Notifications Service', () => {
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         content: expect.objectContaining({
-          title: expect.stringContaining('Pothole Watcher'),
+          title: expect.stringContaining('Pothole'),
         }),
       })
     );

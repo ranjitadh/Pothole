@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Pothole Watcher",
+    "name": "Pothole",
     "slug": "PotholeReactNative",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pothole",
@@ -57,8 +57,8 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Pothole Watcher to use your location to report nearby potholes.",
-          "locationWhenInUsePermission": "Allow Pothole Watcher to use your location to report nearby potholes."
+          "locationAlwaysAndWhenInUsePermission": "Allow Pothole to use your location to report nearby potholes.",
+          "locationWhenInUsePermission": "Allow Pothole to use your location to report nearby potholes."
         }
       ],
       [
@@ -71,8 +71,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Pothole Watcher to access your photos to attach pothole images.",
-          "cameraPermission": "Allow Pothole Watcher to use the camera to take photos of potholes."
+          "photosPermission": "Allow Pothole to access your photos to attach pothole images.",
+          "cameraPermission": "Allow Pothole to use the camera to take photos of potholes."
         }
       ]
     ],
