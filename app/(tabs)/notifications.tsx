@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, FlatList, ActivityIndicator, SafeAreaView, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, FlatList, ActivityIndicator, SafeAreaView, StyleSheet, RefreshControl, Platform } from 'react-native';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -9,7 +9,7 @@ export default function NotificationsScreen() {
   const theme = useColorScheme();
   const isDark = theme === 'dark';
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -29,6 +29,14 @@ export default function NotificationsScreen() {
     },
   });
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
+
   const notifications = data || [];
 
   if (isLoading) {
@@ -45,6 +53,14 @@ export default function NotificationsScreen() {
         data={notifications}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh} 
+            colors={['#ea580c']} 
+            tintColor={isDark ? '#ea580c' : '#64748b'}
+          />
+        }
         renderItem={({ item }) => (
           <View style={[styles.notificationRow, isDark && styles.notificationRowDark]}>
             <View style={[styles.iconWrapper, isDark && styles.iconWrapperDark]}>
@@ -82,6 +98,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
   },
   listContent: {
     paddingBottom: 110,

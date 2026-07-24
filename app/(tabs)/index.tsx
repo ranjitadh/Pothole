@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, RefreshControl, SafeAreaView, StyleSheet } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, RefreshControl, SafeAreaView, StyleSheet, Platform } from 'react-native';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getFeedPosts } from '../../services/post';
@@ -96,6 +96,7 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    paddingTop: Platform.OS === 'android' ? 16 : 8,
   },
   centerContainer: {
     flex: 1,
