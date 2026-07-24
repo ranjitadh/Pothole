@@ -21,6 +21,12 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://ymfzcapzpghfvlzczdgf.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltZnpjYXB6cGdoZnZsemN6ZGdmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNTI5NTYsImV4cCI6MjA5ODgyODk1Nn0.QXksSGwSvTXBJQyfduY1U-kIMSVyxKpVp0vlgSssnlo",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyCpWyUEinrDXj7mZmC_9EOrS8MIcQwyN5E",
+        "EXPO_PUBLIC_APP_URL": "https://pathhole-neon.vercel.app"
       }
     }
   },
