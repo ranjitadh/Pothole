@@ -99,6 +99,11 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "updates": {
+      "url": "https://u.expo.dev/f4579e84-439d-4b0a-b4c2-4c9e6068ac62",
+      "fallbackToCacheTimeout": 30000,
+      "checkAutomatically": "ON_LOAD"
+    },
     "owner": "ranjitadh"
   }
 }
