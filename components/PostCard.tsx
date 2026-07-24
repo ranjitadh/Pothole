@@ -8,6 +8,7 @@ import { useColorScheme } from '../components/useColorScheme';
 import { useVoteStore } from '../store/vote-store';
 import { CommentsDrawer } from './CommentsDrawer';
 import { supabase } from '../services/supabase';
+import { useRouter } from 'expo-router';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -16,12 +17,24 @@ interface PostCardProps {
 }
 
 export function PostCard({ post }: PostCardProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [isUpvoted, setIsUpvoted] = useState(post.isLiked);
   const [isSaved, setIsSaved] = useState(post.isSaved);
   const [showMenu, setShowMenu] = useState(false);
   const [isCommentsVisible, setIsCommentsVisible] = useState(false);
+
+  const handleProfilePress = () => {
+    if (user?.id === post.userId) {
+      router.push('/(tabs)/profile');
+    } else {
+      router.push({
+        pathname: '/profile/[username]',
+        params: { username: post.author.username }
+      });
+    }
+  };
 
   const [isReposted, setIsReposted] = useState(false);
   const [repostsCount, setRepostsCount] = useState(post.sharesCount || 0);
@@ -255,7 +268,11 @@ export function PostCard({ post }: PostCardProps) {
     >
       {/* Header */}
       <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
+        <TouchableOpacity 
+          onPress={handleProfilePress} 
+          style={styles.headerLeft}
+          activeOpacity={0.7}
+        >
           <Image
             source={{ uri: post.author.avatarUrl || 'https://via.placeholder.com/150' }}
             style={styles.avatar}
@@ -264,7 +281,7 @@ export function PostCard({ post }: PostCardProps) {
             <Text style={[styles.authorName, isDark && styles.authorNameDark]}>{post.author.displayName}</Text>
             <Text style={[styles.username, isDark && styles.usernameDark]}>@{post.author.username}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.headerRight}>
           {/* Status Badge */}
