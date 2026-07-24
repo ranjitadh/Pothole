@@ -3,15 +3,15 @@ import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Home, Search, Plus, Bell, User } from 'lucide-react-native';
 import { useColorScheme } from '../../components/useColorScheme';
 
-function CustomTabBarButton({ children, onPress }: any) {
+function CustomTabBarButton({ children, onPress, style }: any) {
   return (
     <TouchableOpacity
-      style={styles.customButtonContainer}
+      style={[style, styles.customButtonContainer]}
       onPress={onPress}
       activeOpacity={0.85}
     >
       <View style={styles.customButton}>
-        <Plus size={22} color="#ffffff" strokeWidth={3} />
+        <Plus size={24} color="#ffffff" strokeWidth={3} />
       </View>
     </TouchableOpacity>
   );
@@ -102,24 +102,22 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   customButtonContainer: {
-    top: -4,
+    top: -10,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 56,
-    height: 56,
   },
   customButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#ea580c',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#ea580c',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 6,
   },
 });
 
