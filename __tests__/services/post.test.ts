@@ -295,6 +295,9 @@ describe('Post Service', () => {
   describe('deletePost', () => {
     it('deletes a post', async () => {
       mockSupabase.from.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockResolvedValue({ data: [], error: null }),
+        }),
         delete: jest.fn().mockReturnValue({
           eq: jest.fn().mockResolvedValue({ error: null }),
         }),

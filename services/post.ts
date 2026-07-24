@@ -337,6 +337,28 @@ export async function createPost(data: {
 }
 
 export async function deletePost(postId: string) {
+  // Retrieve media rows to delete storage files before deleting database row
+  const { data: mediaRows } = await supabase
+    .from('post_media')
+    .select('url')
+    .eq('post_id', postId);
+
+  if (mediaRows && mediaRows.length > 0) {
+    const paths = mediaRows.map((m: any) => {
+      const url = m.url as string;
+      const match = url.match(/\/storage\/v1\/object\/(?:public|authenticated)\/([^/]+)\/(.+)$/);
+      return match ? { bucket: match[1], path: match[2] } : null;
+    }).filter(Boolean) as { bucket: string; path: string }[];
+
+    for (const { bucket, path } of paths) {
+      try {
+        await supabase.storage.from(bucket).remove([path]);
+      } catch (err) {
+        console.warn(`Failed to delete storage file: ${bucket}/${path}`, err);
+      }
+    }
+  }
+
   const { error } = await supabase.from('posts').delete().eq('id', postId);
   if (error) throw new Error(error.message);
   return { success: true };
@@ -574,16 +596,19 @@ export async function repostPost(postId: string) {
   return true;
 }
 
-export async function uploadPhoto(uri: string) {
+export async function uploadPhoto(uri: string, bucket = 'posts') {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Unauthorized');
+
   const response = await fetch(uri);
   const blob = await response.blob();
   
   const filename = uri.split('/').pop() || `${Date.now()}.jpg`;
   const fileExt = filename.split('.').pop() || 'jpg';
-  const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+  const filePath = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
   const { data, error } = await supabase.storage
-    .from('posts')
+    .from(bucket)
     .upload(filePath, blob, {
       contentType: `image/${fileExt === 'png' ? 'png' : 'jpeg'}`,
     });
@@ -591,7 +616,7 @@ export async function uploadPhoto(uri: string) {
   if (error) throw new Error(error.message);
 
   const { data: publicUrlData } = supabase.storage
-    .from('posts')
+    .from(bucket)
     .getPublicUrl(filePath);
 
   return publicUrlData.publicUrl;

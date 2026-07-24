@@ -8,6 +8,19 @@ import { useColorScheme } from '../../components/useColorScheme';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadPhoto } from '../../services/post';
 import { registerForPushNotificationsAsync, sendTestPushNotification } from '../../services/notifications';
+async function deleteOldFile(url: string, bucket: string): Promise<void> {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    const bucketIndex = pathParts.indexOf(bucket);
+    if (bucketIndex === -1 || bucketIndex >= pathParts.length - 1) return;
+    const filePath = pathParts.slice(bucketIndex + 1).join('/');
+    if (!filePath || filePath === 'null') return;
+    await supabase.storage.from(bucket).remove([filePath]);
+  } catch {
+    // Ignore cleanup errors
+  }
+}
 
 export default function ProfileScreen() {
   const { profile, signOut, refreshProfile } = useAuthStore();
@@ -47,7 +60,8 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setUpdatingAvatar(true);
-        const uploadedUrl = await uploadPhoto(result.assets[0].uri);
+        const oldAvatarUrl = profile?.avatarUrl;
+        const uploadedUrl = await uploadPhoto(result.assets[0].uri, 'avatars');
         
         const { error } = await supabase
           .from('profiles')
@@ -56,6 +70,9 @@ export default function ProfileScreen() {
 
         if (error) throw error;
         await refreshProfile();
+        if (oldAvatarUrl) {
+          await deleteOldFile(oldAvatarUrl, 'avatars');
+        }
         Alert.alert('Success', 'Profile picture updated successfully!');
       }
     } catch (err: any) {
@@ -82,7 +99,8 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setUpdatingCover(true);
-        const uploadedUrl = await uploadPhoto(result.assets[0].uri);
+        const oldCoverUrl = profile?.coverUrl;
+        const uploadedUrl = await uploadPhoto(result.assets[0].uri, 'covers');
         
         const { error } = await supabase
           .from('profiles')
@@ -91,6 +109,9 @@ export default function ProfileScreen() {
 
         if (error) throw error;
         await refreshProfile();
+        if (oldCoverUrl) {
+          await deleteOldFile(oldCoverUrl, 'covers');
+        }
         Alert.alert('Success', 'Cover photo updated successfully!');
       }
     } catch (err: any) {
