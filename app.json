@@ -36,7 +36,12 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.RECORD_AUDIO"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCpWyUEinrDXj7mZmC_9EOrS8MIcQwyN5E"
+        }
+      }
     },
     "web": {
       "bundler": "metro",
@@ -73,6 +78,12 @@
         {
           "photosPermission": "Allow Pothole to access your photos to attach pothole images.",
           "cameraPermission": "Allow Pothole to use the camera to take photos of potholes."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Pothole to show your location on the map."
         }
       ]
     ],

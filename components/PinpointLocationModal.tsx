@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   webFallbackContainer: {
     flex: 1,
@@ -414,7 +414,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   maximizeButton: {
-    absolute: 'absolute',
     position: 'absolute',
     bottom: 12,
     right: 12,

@@ -52,7 +52,7 @@ export default function ProfileScreen() {
         const { error } = await supabase
           .from('profiles')
           .update({ avatar_url: uploadedUrl })
-          .eq('id', profile.id);
+          .eq('id', profile?.id);
 
         if (error) throw error;
         await refreshProfile();
@@ -87,7 +87,7 @@ export default function ProfileScreen() {
         const { error } = await supabase
           .from('profiles')
           .update({ cover_url: uploadedUrl })
-          .eq('id', profile.id);
+          .eq('id', profile?.id);
 
         if (error) throw error;
         await refreshProfile();
@@ -106,7 +106,7 @@ export default function ProfileScreen() {
       const { error } = await supabase
         .from('profiles')
         .update({ bio: bioText.trim() || null })
-        .eq('id', profile.id);
+        .eq('id', profile?.id);
 
       if (error) throw error;
       await refreshProfile();

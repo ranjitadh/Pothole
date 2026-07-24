@@ -27,7 +27,7 @@ export default function SearchScreen() {
   // Compute initials for profile icon
   const getInitials = () => {
     if (!profile) return 'AD';
-    const name = profile.display_name || '';
+    const name = profile.displayName || '';
     const parts = name.split(' ').filter(Boolean);
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();

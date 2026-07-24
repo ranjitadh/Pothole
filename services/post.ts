@@ -583,7 +583,7 @@ export async function uploadPhoto(uri: string) {
   const filePath = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
   const { data, error } = await supabase.storage
-    .from('post_media')
+    .from('posts')
     .upload(filePath, blob, {
       contentType: `image/${fileExt === 'png' ? 'png' : 'jpeg'}`,
     });
@@ -591,7 +591,7 @@ export async function uploadPhoto(uri: string) {
   if (error) throw new Error(error.message);
 
   const { data: publicUrlData } = supabase.storage
-    .from('post_media')
+    .from('posts')
     .getPublicUrl(filePath);
 
   return publicUrlData.publicUrl;
