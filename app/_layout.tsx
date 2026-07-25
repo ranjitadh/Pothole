@@ -30,24 +30,18 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
   if (!loaded) {
     return null;
   }
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RootLayoutNav />
+      <RootLayoutNav fontsLoaded={loaded} />
     </QueryClientProvider>
   );
 }
 
-function RootLayoutNav() {
+function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
   const segments = useSegments();
   const router = useRouter();
   const { user, isLoading, initialize } = useAuthStore();
@@ -55,6 +49,12 @@ function RootLayoutNav() {
   useEffect(() => {
     initialize();
   }, []);
+
+  useEffect(() => {
+    if (fontsLoaded && !isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, isLoading]);
 
   useEffect(() => {
     if (isLoading) return;

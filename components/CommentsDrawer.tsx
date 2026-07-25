@@ -155,6 +155,11 @@ export function CommentsDrawer({ visible, onClose, postId }: CommentsDrawerProps
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.overlay}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
         <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
           
           {/* Header */}

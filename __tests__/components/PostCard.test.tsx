@@ -201,7 +201,7 @@ describe('PostCard Component', () => {
 
     expect(Share.share).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining('https://expo.dev/artifacts/eas/pothole-watcher-app'),
+        message: expect.stringContaining('play.google.com/store/apps/details?id=com.pothole.app'),
       })
     );
   });

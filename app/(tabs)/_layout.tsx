@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import { Home, Search, Plus, Bell, User } from 'lucide-react-native';
 import { useColorScheme } from '../../components/useColorScheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function CustomTabBarButton({ children, onPress, style }: any) {
   return (
@@ -20,6 +21,7 @@ function CustomTabBarButton({ children, onPress, style }: any) {
 export default function TabLayout() {
   const theme = useColorScheme();
   const isDark = theme === 'dark';
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -34,20 +36,17 @@ export default function TabLayout() {
         },
         tabBarStyle: {
           position: 'absolute',
-          bottom: 0,
+          bottom: insets.bottom > 0 ? insets.bottom : 12,
           left: 20,
           right: 20,
           backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
           borderWidth: 1,
-          borderBottomWidth: 0,
+          borderBottomWidth: 1,
           borderColor: isDark ? '#1e293b' : '#e2e8f0',
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          borderBottomLeftRadius: 0,
-          borderBottomRightRadius: 0,
-          height: 80,
+          borderRadius: 24,
+          height: 64,
           paddingTop: 8,
-          paddingBottom: 22,
+          paddingBottom: 8,
           shadowColor: '#000000',
           shadowOffset: { width: 0, height: -4 },
           shadowOpacity: 0.08,

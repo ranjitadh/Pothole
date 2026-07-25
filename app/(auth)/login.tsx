@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { supabase } from '../../services/supabase';
 import { Globe } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
 
 WebBrowser.maybeCompleteAuthSession();

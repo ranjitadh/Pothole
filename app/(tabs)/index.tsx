@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, RefreshControl, SafeAreaView, StyleSheet, Platform } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, RefreshControl, StyleSheet, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getFeedPosts } from '../../services/post';

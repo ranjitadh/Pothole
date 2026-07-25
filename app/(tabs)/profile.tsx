@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView, StyleSheet, Switch, TextInput, Modal } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, Switch, TextInput, Modal, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth-store';
 import { supabase } from '../../services/supabase';
 import { LogOut, Trash2, Bell, MapPin, Moon, Eye, EyeOff, Camera, Image as ImageIcon, AlignLeft, MoreHorizontal } from 'lucide-react-native';
@@ -23,10 +24,13 @@ async function deleteOldFile(url: string, bucket: string): Promise<void> {
 }
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { profile, signOut, refreshProfile } = useAuthStore();
   const { themeMode, setThemeMode } = useThemeStore();
   const theme = useColorScheme();
   const isDark = theme === 'dark';
+
+  const menuTop = insets.top + 56;
 
   const [deleting, setDeleting] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -247,48 +251,70 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             {showProfileMenu && (
-              <View style={[styles.profileMenu, isDark && styles.profileMenuDark]}>
-                <TouchableOpacity 
-                  onPress={() => { setShowProfileMenu(false); handleChangeAvatar(); }} 
-                  style={styles.profileMenuItem}
-                  testID="change-avatar-menu-item"
-                  disabled={updatingAvatar}
+              <Modal
+                visible={showProfileMenu}
+                transparent={true}
+                animationType="none"
+                onRequestClose={() => setShowProfileMenu(false)}
+              >
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFill}
+                  activeOpacity={1}
+                  onPress={() => setShowProfileMenu(false)}
+                />
+                <View 
+                  style={[
+                    styles.profileMenu, 
+                    isDark && styles.profileMenuDark,
+                    {
+                      position: 'absolute',
+                      top: menuTop,
+                      right: 16,
+                    }
+                  ]}
                 >
-                  <Camera size={14} color="#ea580c" style={{ marginRight: 8 }} />
-                  <Text style={[styles.profileMenuText, isDark && styles.textLight]}>
-                    {updatingAvatar ? 'Updating Photo...' : 'Edit Profile Photo'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <View style={[styles.profileMenuSeparator, isDark && styles.profileMenuSeparatorDark]} />
+                  <TouchableOpacity 
+                    onPress={() => { setShowProfileMenu(false); handleChangeAvatar(); }} 
+                    style={styles.profileMenuItem}
+                    testID="change-avatar-menu-item"
+                    disabled={updatingAvatar}
+                  >
+                    <Camera size={14} color="#ea580c" style={{ marginRight: 8 }} />
+                    <Text style={[styles.profileMenuText, isDark && styles.textLight]}>
+                      {updatingAvatar ? 'Updating Photo...' : 'Edit Profile Photo'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <View style={[styles.profileMenuSeparator, isDark && styles.profileMenuSeparatorDark]} />
 
-                <TouchableOpacity 
-                  onPress={() => { setShowProfileMenu(false); handleChangeCover(); }} 
-                  style={styles.profileMenuItem}
-                  testID="change-cover-menu-item"
-                  disabled={updatingCover}
-                >
-                  <ImageIcon size={14} color="#ea580c" style={{ marginRight: 8 }} />
-                  <Text style={[styles.profileMenuText, isDark && styles.textLight]}>
-                    {updatingCover ? 'Updating Cover...' : 'Edit Cover Photo'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <View style={[styles.profileMenuSeparator, isDark && styles.profileMenuSeparatorDark]} />
+                  <TouchableOpacity 
+                    onPress={() => { setShowProfileMenu(false); handleChangeCover(); }} 
+                    style={styles.profileMenuItem}
+                    testID="change-cover-menu-item"
+                    disabled={updatingCover}
+                  >
+                    <ImageIcon size={14} color="#ea580c" style={{ marginRight: 8 }} />
+                    <Text style={[styles.profileMenuText, isDark && styles.textLight]}>
+                      {updatingCover ? 'Updating Cover...' : 'Edit Cover Photo'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <View style={[styles.profileMenuSeparator, isDark && styles.profileMenuSeparatorDark]} />
 
-                <TouchableOpacity 
-                  onPress={() => {
-                    setShowProfileMenu(false);
-                    setBioText(profile.bio || '');
-                    setIsBioModalVisible(true);
-                  }} 
-                  style={styles.profileMenuItem}
-                  testID="edit-bio-menu-item"
-                >
-                  <AlignLeft size={14} color="#ea580c" style={{ marginRight: 8 }} />
-                  <Text style={[styles.profileMenuText, isDark && styles.textLight]}>Edit Bio</Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setShowProfileMenu(false);
+                      setBioText(profile.bio || '');
+                      setIsBioModalVisible(true);
+                    }} 
+                    style={styles.profileMenuItem}
+                    testID="edit-bio-menu-item"
+                  >
+                    <AlignLeft size={14} color="#ea580c" style={{ marginRight: 8 }} />
+                    <Text style={[styles.profileMenuText, isDark && styles.textLight]}>Edit Bio</Text>
+                  </TouchableOpacity>
+                </View>
+              </Modal>
             )}
           </View>
         </View>
@@ -458,6 +484,11 @@ export default function ProfileScreen() {
         onRequestClose={() => setIsBioModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setIsBioModalVisible(false)}
+          />
           <View style={[styles.bioModalContent, isDark && styles.bioModalContentDark]}>
             <Text style={[styles.bioModalTitle, isDark && styles.textLight]}>Update Bio</Text>
             

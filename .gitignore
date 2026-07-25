@@ -45,3 +45,4 @@ yarn-error.*
 # credentials & keys
 google-services-key.json
 *.keystore
+coverage/

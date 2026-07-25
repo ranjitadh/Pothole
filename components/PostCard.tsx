@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, Alert, Platform, StyleSheet, Share } from 'react-native';
-import { Heart, MessageCircle, Bookmark, AlertTriangle, MoreHorizontal, MapPin, Flag, ShieldAlert, Trash2, ArrowUp, ArrowDown, Repeat, Forward } from 'lucide-react-native';
+import { View, Text, Image, TouchableOpacity, Alert, StyleSheet, Share } from 'react-native';
+import { MessageCircle, MoreHorizontal, MapPin, Flag, ShieldAlert, Trash2, ArrowUp, ArrowDown, Repeat, Forward } from 'lucide-react-native';
 import type { PostWithDetails } from '../types';
 import { useAuthStore } from '../store/auth-store';
 import { likePost, unlikePost, savePost, unsavePost, deletePost, blockUser, updatePostStatus, reportPost, repostPost } from '../services/post';
@@ -30,7 +30,7 @@ export function PostCard({ post }: PostCardProps) {
       router.push('/(tabs)/profile');
     } else {
       router.push({
-        pathname: '/profile/[username]',
+        pathname: '/profile/[username]' as any,
         params: { username: post.author.username }
       });
     }
@@ -78,7 +78,7 @@ export function PostCard({ post }: PostCardProps) {
 
   const handleShare = async () => {
     try {
-      const appLink = 'https://expo.dev/artifacts/eas/pothole-watcher-app';
+      const appLink = 'https://play.google.com/store/apps/details?id=com.pothole.app';
       await Share.share({
         message: `Check out this road hazard report on Pothole app: ${appLink}\n\n"${post.text || 'Pothole alert!'}"`,
       });

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, SafeAreaView, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '../../components/useColorScheme';
 import { Camera, Image as ImageIcon, MapPin, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';

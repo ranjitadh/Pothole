@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, FlatList, Image, ActivityIndicator, StyleSheet, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Sun, MapPin, X, Hash, Moon } from 'lucide-react-native';
+import { Search, MapPin, X, Hash } from 'lucide-react-native';
 import { useAuthStore } from '../../store/auth-store';
 import { searchUsers, searchPosts, searchHashtags } from '../../services/post';
 import { PostCard } from '../../components/PostCard';
 import type { PostWithDetails } from '../../types';
-import { useThemeStore } from '../../store/theme-store';
 import { useColorScheme } from '../../components/useColorScheme';
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
   const { profile } = useAuthStore();
-  const { themeMode, setThemeMode } = useThemeStore();
   const theme = useColorScheme();
   const isDark = theme === 'dark';
 
@@ -23,17 +21,6 @@ export default function SearchScreen() {
   const [posts, setPosts] = useState<PostWithDetails[]>([]);
   const [hashtags, setHashtags] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Compute initials for profile icon
-  const getInitials = () => {
-    if (!profile) return 'AD';
-    const name = profile.displayName || '';
-    const parts = name.split(' ').filter(Boolean);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return (name[0] || 'U').toUpperCase();
-  };
 
   const handleSearch = async (query: string) => {
     const trimmed = query.trim();

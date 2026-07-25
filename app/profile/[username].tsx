@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, SafeAreaView, StyleSheet, FlatList } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, FlatList } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, MapPin, UserPlus, UserMinus, ShieldAlert } from 'lucide-react-native';
 import { supabase } from '../../services/supabase';
@@ -100,37 +101,43 @@ export default function OtherUserProfileScreen() {
         id: p.id,
         userId: p.user_id,
         text: p.text,
-        status: p.status,
+        status: p.status || 'unresolved',
         visibility: p.visibility,
         likesCount: p.likes_count || 0,
         commentsCount: p.comments_count || 0,
         sharesCount: p.shares_count || 0,
+        isEdited: p.is_edited || false,
         createdAt: p.created_at,
         author: {
           id: p.author.id,
           username: p.author.username,
           displayName: p.author.display_name,
+          bio: p.author.bio || null,
           avatarUrl: p.author.avatar_url,
+          coverUrl: p.author.cover_url || null,
           followersCount: p.author.followers_count || 0,
           followingCount: p.author.following_count || 0,
           postsCount: p.author.posts_count || 0,
           createdAt: p.author.created_at,
         },
-        media: p.media.map((m: any) => ({
+        media: (p.media || []).map((m: any) => ({
           id: m.id,
-          postId: m.post_id,
           url: m.url,
-          mediaType: m.media_type,
-          createdAt: m.created_at,
+          type: m.type || 'image',
+          width: m.width || null,
+          height: m.height || null,
+          thumbnailUrl: m.thumbnail_url || null,
         })),
         location: p.location ? {
           id: p.location.id,
-          postId: p.location.post_id,
           latitude: p.location.latitude,
           longitude: p.location.longitude,
           placeName: p.location.place_name,
-          createdAt: p.location.created_at,
-        } : undefined,
+          country: p.location.country || null,
+          city: p.location.city || null,
+          googlePlaceId: p.location.google_place_id || null,
+        } : null,
+        hashtags: [],
         isLiked: likedIds.has(p.id),
         isSaved: savedIds.has(p.id),
       }));

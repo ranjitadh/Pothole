@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pothole",
     "slug": "PotholeReactNative",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pothole",
@@ -33,8 +33,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.INTERNET",
         "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECEIVE_BOOT_COMPLETED"
       ],
       "predictiveBackGestureEnabled": false,
       "config": {
@@ -69,7 +68,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/android-icon-monochrome.png",
           "color": "#ea580c"
         }
       ],
@@ -85,7 +84,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow Pothole to show your location on the map."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

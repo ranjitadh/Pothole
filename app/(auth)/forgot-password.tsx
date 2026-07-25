@@ -16,7 +16,7 @@ export default function ForgotPasswordScreen() {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'potholereactnative://reset-password',
+        redirectTo: 'pothole://reset-password',
       });
 
       if (error) throw error;

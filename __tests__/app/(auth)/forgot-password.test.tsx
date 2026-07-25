@@ -76,7 +76,7 @@ describe('Forgot Password Screen', () => {
     });
 
     expect(mockSupabase.auth.resetPasswordForEmail).toHaveBeenCalledWith('test@example.com', {
-      redirectTo: 'potholereactnative://reset-password',
+      redirectTo: 'pothole://reset-password',
     });
   });
 

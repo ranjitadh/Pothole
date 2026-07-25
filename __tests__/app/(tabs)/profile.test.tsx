@@ -2,6 +2,11 @@ import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }),
+  SafeAreaView: ({ children }: any) => children,
+}));
+
 jest.mock('../../../services/supabase', () => ({
   supabase: {
     rpc: jest.fn().mockResolvedValue({ error: null }),
