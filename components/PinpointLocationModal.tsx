@@ -33,6 +33,21 @@ interface PinpointLocationModalProps {
 const DEFAULT_COORDS = { latitude: 27.6710, longitude: 85.3240 };
 const DEFAULT_REGION = { ...DEFAULT_COORDS, latitudeDelta: 0.008, longitudeDelta: 0.008 };
 
+const isValidCoordinate = (lat: any, lng: any) => {
+  return (
+    typeof lat === 'number' &&
+    typeof lng === 'number' &&
+    !isNaN(lat) &&
+    !isNaN(lng) &&
+    isFinite(lat) &&
+    isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  );
+};
+
 export function PinpointLocationModal({ visible, onClose, onConfirm, initialLocation }: PinpointLocationModalProps) {
   const mapRef = useRef<MapView | null>(null);
   const mountedRef = useRef(true);
@@ -44,7 +59,6 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [markerCoords, setMarkerCoords] = useState(DEFAULT_COORDS);
   const [placeName, setPlaceName] = useState('');
-  const [region, setRegion] = useState(DEFAULT_REGION);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -71,12 +85,20 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     }
 
     if (initialLocation?.latitude != null && initialLocation?.longitude != null) {
-      const coords = { latitude: initialLocation.latitude, longitude: initialLocation.longitude };
-      const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
-      safeSet(setMarkerCoords, coords);
-      safeSet(setPlaceName, initialLocation.placeName || '');
-      safeSet(setSearchText, initialLocation.placeName || '');
-      safeSet(setRegion, newRegion);
+      const lat = Number(initialLocation.latitude);
+      const lng = Number(initialLocation.longitude);
+      if (isValidCoordinate(lat, lng)) {
+        const coords = { latitude: lat, longitude: lng };
+        const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+        safeSet(setMarkerCoords, coords);
+        safeSet(setPlaceName, initialLocation.placeName || '');
+        safeSet(setSearchText, initialLocation.placeName || '');
+        if (mapRef.current) {
+          mapRef.current.animateToRegion(newRegion, 500);
+        }
+      } else {
+        handleGetCurrentLocation();
+      }
     } else {
       handleGetCurrentLocation();
     }
@@ -116,16 +138,15 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
       }
 
       if (current?.coords) {
-        const lat = current.coords.latitude;
-        const lng = current.coords.longitude;
-        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+        const lat = Number(current.coords.latitude);
+        const lng = Number(current.coords.longitude);
+        if (!isValidCoordinate(lat, lng)) {
           Alert.alert('Location Error', 'Received invalid coordinates. Please try again.');
           return;
         }
         const coords = { latitude: lat, longitude: lng };
         const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
         safeSet(setMarkerCoords, coords);
-        safeSet(setRegion, newRegion);
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
@@ -179,16 +200,15 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
       const results = await Location.geocodeAsync(query);
       if (results && results.length > 0) {
         const result = results[0];
-        const lat = result.latitude;
-        const lng = result.longitude;
-        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+        const lat = Number(result.latitude);
+        const lng = Number(result.longitude);
+        if (!isValidCoordinate(lat, lng)) {
           Alert.alert('Error', 'Received invalid coordinates for this address.');
           return;
         }
         const coords = { latitude: lat, longitude: lng };
         const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
         safeSet(setMarkerCoords, coords);
-        safeSet(setRegion, newRegion);
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
@@ -205,16 +225,24 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
 
   const handleMapPress = useCallback((e: any) => {
     const coords = e?.nativeEvent?.coordinate;
-    if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
-    safeSet(setMarkerCoords, coords);
-    reverseGeocode(coords.latitude, coords.longitude);
+    if (!coords) return;
+    const lat = Number(coords.latitude);
+    const lng = Number(coords.longitude);
+    if (!isValidCoordinate(lat, lng)) return;
+    const cleanCoords = { latitude: lat, longitude: lng };
+    safeSet(setMarkerCoords, cleanCoords);
+    reverseGeocode(lat, lng);
   }, [safeSet, reverseGeocode]);
 
   const handleMarkerDragEnd = useCallback((e: any) => {
     const coords = e?.nativeEvent?.coordinate;
-    if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
-    safeSet(setMarkerCoords, coords);
-    reverseGeocode(coords.latitude, coords.longitude);
+    if (!coords) return;
+    const lat = Number(coords.latitude);
+    const lng = Number(coords.longitude);
+    if (!isValidCoordinate(lat, lng)) return;
+    const cleanCoords = { latitude: lat, longitude: lng };
+    safeSet(setMarkerCoords, cleanCoords);
+    reverseGeocode(lat, lng);
   }, [safeSet, reverseGeocode]);
 
   const handleConfirm = useCallback(() => {
@@ -296,7 +324,6 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
                 ref={mapRef}
                 style={styles.map}
                 initialRegion={DEFAULT_REGION}
-                region={region}
                 onMapReady={handleMapReady}
                 onPress={handleMapPress}
                 showsUserLocation={false}
@@ -307,12 +334,14 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
                 loadingEnabled
                 loadingBackgroundColor="#f8fafc"
               >
-                <Marker
-                  coordinate={markerCoords}
-                  draggable
-                  onDragEnd={handleMarkerDragEnd}
-                  pinColor="#ea580c"
-                />
+                {isValidCoordinate(markerCoords.latitude, markerCoords.longitude) && (
+                  <Marker
+                    coordinate={markerCoords}
+                    draggable
+                    onDragEnd={handleMarkerDragEnd}
+                    pinColor="#ea580c"
+                  />
+                )}
               </MapView>
               <TouchableOpacity
                 style={styles.maximizeButton}
