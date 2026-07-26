@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert, Dimensions, BackHandler } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Search, Locate, Maximize2, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
 
@@ -35,6 +36,7 @@ const DEFAULT_REGION = { ...DEFAULT_COORDS, latitudeDelta: 0.008, longitudeDelta
 export function PinpointLocationModal({ visible, onClose, onConfirm, initialLocation }: PinpointLocationModalProps) {
   const mapRef = useRef<MapView | null>(null);
   const mountedRef = useRef(true);
+  const insets = useSafeAreaInsets();
   const [mapReady, setMapReady] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -48,6 +50,15 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      onClose();
+      return true;
+    });
+    return () => handler.remove();
+  }, [visible, onClose]);
 
   const safeSet = useCallback(<T,>(setter: (v: T) => void, value: T) => {
     if (mountedRef.current) setter(value);
@@ -224,8 +235,15 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
   const screenHeight = Dimensions.get('window').height;
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <View style={[styles.modalCard, { maxHeight: screenHeight * 0.85 }]}>
+    <View style={styles.overlay}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={[styles.modalCard, {
+        maxHeight: screenHeight * 0.85,
+        marginTop: insets.top + 8,
+        marginBottom: insets.bottom + 8,
+      }]}
+        onStartShouldSetResponder={() => true}
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.titleContainer}>
@@ -352,10 +370,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 16,
     zIndex: 9999,
     elevation: 9999,
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalCard: {
     backgroundColor: '#ffffff',
@@ -369,6 +389,8 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 10,
     flexDirection: 'column',
+    zIndex: 1,
+    marginHorizontal: 16,
   },
   header: {
     flexDirection: 'row',

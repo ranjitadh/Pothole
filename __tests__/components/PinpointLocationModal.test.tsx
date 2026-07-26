@@ -2,6 +2,11 @@ import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import { PinpointLocationModal } from '../../components/PinpointLocationModal';
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  SafeAreaProvider: ({ children }: any) => children,
+  SafeAreaView: ({ children }: any) => children,
+}));
 jest.mock('expo-location');
 jest.mock('react-native-maps');
 jest.mock('lucide-react-native', () => ({
