@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert, Dimensions } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { X, Search, Locate, Maximize2, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error: Error) { console.warn('Map error:', error.message); }
+  componentDidCatch(error: Error) { console.warn('[PinpointLocation] MapErrorBoundary caught:', error.message); }
   render() {
     if (this.state.hasError) {
       return (
@@ -29,58 +29,50 @@ interface PinpointLocationModalProps {
   initialLocation?: { latitude: number; longitude: number; placeName?: string } | null;
 }
 
+const DEFAULT_COORDS = { latitude: 27.6710, longitude: 85.3240 };
+const DEFAULT_REGION = { ...DEFAULT_COORDS, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+
 export function PinpointLocationModal({ visible, onClose, onConfirm, initialLocation }: PinpointLocationModalProps) {
   const mapRef = useRef<MapView | null>(null);
+  const mountedRef = useRef(true);
+  const [mapReady, setMapReady] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
-
-  // Default coordinate: Kathmandu fallback (Lalitpur/Kathmandu center)
-  const defaultCoords = {
-    latitude: 27.6710,
-    longitude: 85.3240,
-  };
-
-  const [markerCoords, setMarkerCoords] = useState(defaultCoords);
+  const [markerCoords, setMarkerCoords] = useState(DEFAULT_COORDS);
   const [placeName, setPlaceName] = useState('');
+  const [region, setRegion] = useState(DEFAULT_REGION);
 
-  // Map Region State
-  const [region, setRegion] = useState({
-    latitude: defaultCoords.latitude,
-    longitude: defaultCoords.longitude,
-    latitudeDelta: 0.008,
-    longitudeDelta: 0.008,
-  });
-
-  // When modal becomes visible, initialize coordinates
   useEffect(() => {
-    if (visible) {
-      if (initialLocation) {
-        const coords = {
-          latitude: initialLocation.latitude,
-          longitude: initialLocation.longitude,
-        };
-        setMarkerCoords(coords);
-        setPlaceName(initialLocation.placeName || '');
-        setSearchText(initialLocation.placeName || '');
-        const newRegion = {
-          ...coords,
-          latitudeDelta: 0.008,
-          longitudeDelta: 0.008,
-        };
-        setRegion(newRegion);
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(newRegion, 500);
-        }
-      } else {
-        handleGetCurrentLocation();
-      }
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const safeSet = useCallback(<T,>(setter: (v: T) => void, value: T) => {
+    if (mountedRef.current) setter(value);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) {
+      setMapReady(false);
+      return;
+    }
+
+    if (initialLocation?.latitude != null && initialLocation?.longitude != null) {
+      const coords = { latitude: initialLocation.latitude, longitude: initialLocation.longitude };
+      const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+      safeSet(setMarkerCoords, coords);
+      safeSet(setPlaceName, initialLocation.placeName || '');
+      safeSet(setSearchText, initialLocation.placeName || '');
+      safeSet(setRegion, newRegion);
+    } else {
+      handleGetCurrentLocation();
     }
   }, [visible]);
 
-  const handleGetCurrentLocation = async () => {
-    setIsLocating(true);
+  const handleGetCurrentLocation = useCallback(async () => {
+    safeSet(setIsLocating, true);
     try {
       let status = 'granted';
       try {
@@ -91,7 +83,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
       }
 
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to pinpoint your location.');
+        Alert.alert('Permission Denied', 'Location permission is required to pinpoint your location. Please enable it in Settings.');
         return;
       }
 
@@ -112,36 +104,34 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
         }
       }
 
-      if (current) {
-        const coords = {
-          latitude: current.coords.latitude,
-          longitude: current.coords.longitude,
-        };
-
-        setMarkerCoords(coords);
-        const newRegion = {
-          ...coords,
-          latitudeDelta: 0.008,
-          longitudeDelta: 0.008,
-        };
-        setRegion(newRegion);
+      if (current?.coords) {
+        const lat = current.coords.latitude;
+        const lng = current.coords.longitude;
+        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+          Alert.alert('Location Error', 'Received invalid coordinates. Please try again.');
+          return;
+        }
+        const coords = { latitude: lat, longitude: lng };
+        const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+        safeSet(setMarkerCoords, coords);
+        safeSet(setRegion, newRegion);
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
-        await reverseGeocode(coords.latitude, coords.longitude);
+        await reverseGeocode(lat, lng);
       } else {
         Alert.alert('Location Error', 'Could not retrieve coordinates. Please try searching for an address or check your GPS settings.');
       }
     } catch (err: any) {
-      console.warn('Could not fetch current coordinates:', err);
-      Alert.alert('Location Error', 'Error fetching position: ' + (err.message || 'Unknown error'));
+      console.warn('[PinpointLocation] getCurrentLocation error:', err?.message || err);
+      Alert.alert('Location Error', 'Error fetching position: ' + (err?.message || 'Unknown error'));
     } finally {
-      setIsLocating(false);
+      safeSet(setIsLocating, false);
     }
-  };
+  }, [safeSet]);
 
-  const reverseGeocode = async (lat: number, lng: number) => {
-    setIsGeocoding(true);
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    safeSet(setIsGeocoding, true);
     try {
       const geocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
       if (geocode && geocode.length > 0) {
@@ -153,209 +143,225 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
         ].filter(Boolean).join(' ').trim();
 
         const formattedAddress = name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        setPlaceName(formattedAddress);
-        setSearchText(formattedAddress);
+        safeSet(setPlaceName, formattedAddress);
+        safeSet(setSearchText, formattedAddress);
       } else {
         const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        setPlaceName(fallback);
-        setSearchText(fallback);
+        safeSet(setPlaceName, fallback);
+        safeSet(setSearchText, fallback);
       }
-    } catch (err) {
+    } catch {
       const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      setPlaceName(fallback);
-      setSearchText(fallback);
+      safeSet(setPlaceName, fallback);
+      safeSet(setSearchText, fallback);
     } finally {
-      setIsGeocoding(false);
+      safeSet(setIsGeocoding, false);
     }
-  };
+  }, [safeSet]);
 
-  const handleSearch = async () => {
-    if (!searchText.trim()) return;
-    setIsSearching(true);
+  const handleSearch = useCallback(async () => {
+    const query = searchText.trim();
+    if (!query) return;
+    safeSet(setIsSearching, true);
     Keyboard.dismiss();
     try {
-      const results = await Location.geocodeAsync(searchText);
+      const results = await Location.geocodeAsync(query);
       if (results && results.length > 0) {
         const result = results[0];
-        const coords = {
-          latitude: result.latitude,
-          longitude: result.longitude,
-        };
-        setMarkerCoords(coords);
-        const newRegion = {
-          ...coords,
-          latitudeDelta: 0.008,
-          longitudeDelta: 0.008,
-        };
-        setRegion(newRegion);
+        const lat = result.latitude;
+        const lng = result.longitude;
+        if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
+          Alert.alert('Error', 'Received invalid coordinates for this address.');
+          return;
+        }
+        const coords = { latitude: lat, longitude: lng };
+        const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+        safeSet(setMarkerCoords, coords);
+        safeSet(setRegion, newRegion);
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
-        await reverseGeocode(coords.latitude, coords.longitude);
+        await reverseGeocode(lat, lng);
       } else {
-        alert('Address not found. Please try a different query.');
+        Alert.alert('Not Found', 'Address not found. Please try a different query.');
       }
     } catch (err: any) {
-      alert('Error searching address: ' + (err.message || 'Unknown error'));
+      Alert.alert('Search Error', 'Error searching address: ' + (err?.message || 'Unknown error'));
     } finally {
-      setIsSearching(false);
+      safeSet(setIsSearching, false);
     }
-  };
+  }, [searchText, safeSet, reverseGeocode]);
 
-  const handleMapPress = (e: any) => {
-    const coords = e.nativeEvent.coordinate;
-    setMarkerCoords(coords);
+  const handleMapPress = useCallback((e: any) => {
+    const coords = e?.nativeEvent?.coordinate;
+    if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
+    safeSet(setMarkerCoords, coords);
     reverseGeocode(coords.latitude, coords.longitude);
-  };
+  }, [safeSet, reverseGeocode]);
 
-  const handleMarkerDragEnd = (e: any) => {
-    const coords = e.nativeEvent.coordinate;
-    setMarkerCoords(coords);
+  const handleMarkerDragEnd = useCallback((e: any) => {
+    const coords = e?.nativeEvent?.coordinate;
+    if (!coords || typeof coords.latitude !== 'number' || typeof coords.longitude !== 'number') return;
+    safeSet(setMarkerCoords, coords);
     reverseGeocode(coords.latitude, coords.longitude);
-  };
+  }, [safeSet, reverseGeocode]);
 
-  const handleConfirm = () => {
+  const handleConfirm = useCallback(() => {
     onConfirm({
       latitude: markerCoords.latitude,
       longitude: markerCoords.longitude,
       placeName: placeName || undefined,
     });
     onClose();
-  };
+  }, [markerCoords, placeName, onConfirm, onClose]);
+
+  const handleMapReady = useCallback(() => {
+    safeSet(setMapReady, true);
+  }, [safeSet]);
+
+  if (!visible) return null;
+
+  const screenHeight = Dimensions.get('window').height;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.modalCard}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.titleContainer}>
-              <MapPin size={18} color="#ea580c" />
-              <Text style={styles.headerTitle}>Pinpoint Location</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={18} color="#64748b" />
-            </TouchableOpacity>
+    <View style={styles.overlay} pointerEvents="box-none">
+      <View style={[styles.modalCard, { maxHeight: screenHeight * 0.85 }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <MapPin size={18} color="#ea580c" />
+            <Text style={styles.headerTitle}>Pinpoint Location</Text>
           </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <X size={18} color="#64748b" />
+          </TouchableOpacity>
+        </View>
 
-          {/* Search bar */}
-          <View style={styles.searchBarContainer}>
-            <View style={styles.searchWrapper}>
-              <Search size={16} color="#94a3b8" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search for an address or place..."
-                placeholderTextColor="#94a3b8"
-                value={searchText}
-                onChangeText={setSearchText}
-                onSubmitEditing={handleSearch}
-                returnKeyType="search"
-              />
-              {isSearching ? (
-                <ActivityIndicator size="small" color="#ea580c" />
-              ) : (
-                <TouchableOpacity onPress={handleGetCurrentLocation} disabled={isLocating} style={styles.locateButton}>
-                  {isLocating ? (
-                    <ActivityIndicator size="small" color="#ea580c" />
-                  ) : (
-                    <Locate size={16} color="#64748b" />
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-
-          {/* Map view */}
-          <View style={styles.mapContainer}>
-            {Platform.OS === 'web' ? (
-              <View style={styles.webFallbackContainer}>
-                <Text style={styles.webFallbackTitle}>Native Maps Unavailable</Text>
-                <Text style={styles.webFallbackSubtitle}>Pinpoint map is optimized for iOS and Android emulator runtimes.</Text>
-              </View>
+        {/* Search bar */}
+        <View style={styles.searchBarContainer}>
+          <View style={styles.searchWrapper}>
+            <Search size={16} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for an address or place..."
+              placeholderTextColor="#94a3b8"
+              value={searchText}
+              onChangeText={setSearchText}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {isSearching ? (
+              <ActivityIndicator size="small" color="#ea580c" />
             ) : (
-              <MapErrorBoundary>
-                <MapView
-                  ref={mapRef}
-                  style={styles.map}
-                  initialRegion={region}
-                  onPress={handleMapPress}
-                >
-                  <Marker
-                    coordinate={markerCoords}
-                    draggable
-                    onDragEnd={handleMarkerDragEnd}
-                    pinColor="#ea580c"
-                  />
-                </MapView>
-                <TouchableOpacity 
-                  style={styles.maximizeButton}
-                  onPress={() => {
-                    if (mapRef.current) {
-                      mapRef.current.animateToRegion({
-                        ...markerCoords,
-                        latitudeDelta: 0.004,
-                        longitudeDelta: 0.004,
-                      }, 500);
-                    }
-                  }}
-                >
-                  <Maximize2 size={16} color="#64748b" />
-                </TouchableOpacity>
-              </MapErrorBoundary>
+              <TouchableOpacity onPress={handleGetCurrentLocation} disabled={isLocating} style={styles.locateButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                {isLocating ? (
+                  <ActivityIndicator size="small" color="#ea580c" />
+                ) : (
+                  <Locate size={16} color="#64748b" />
+                )}
+              </TouchableOpacity>
             )}
-            
-            {isGeocoding && (
-              <View style={styles.geocodingToast}>
-                <ActivityIndicator size="small" color="#ea580c" />
-                <Text style={styles.geocodingToastText}>Getting address...</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Instruction */}
-          <View style={styles.instructionContainer}>
-            <Text style={styles.instructionText}>
-              You can search for an address above, click on the map, or drag the red pin to select your location.
-            </Text>
-          </View>
-
-          {/* Footer Actions */}
-          <View style={styles.footer}>
-            <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleConfirm}
-              style={styles.confirmBtn}
-            >
-              <Text style={styles.confirmBtnText}>Confirm Location</Text>
-            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Map view */}
+        <View style={styles.mapContainer}>
+          {Platform.OS === 'web' ? (
+            <View style={styles.webFallbackContainer}>
+              <Text style={styles.webFallbackTitle}>Native Maps Unavailable</Text>
+              <Text style={styles.webFallbackSubtitle}>Pinpoint map is optimized for iOS and Android.</Text>
+            </View>
+          ) : (
+            <MapErrorBoundary>
+              <MapView
+                ref={mapRef}
+                style={styles.map}
+                initialRegion={DEFAULT_REGION}
+                region={region}
+                onMapReady={handleMapReady}
+                onPress={handleMapPress}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+                showsCompass={false}
+                showsScale={false}
+                showsTraffic={false}
+                loadingEnabled
+                loadingBackgroundColor="#f8fafc"
+              >
+                <Marker
+                  coordinate={markerCoords}
+                  draggable
+                  onDragEnd={handleMarkerDragEnd}
+                  pinColor="#ea580c"
+                />
+              </MapView>
+              <TouchableOpacity
+                style={styles.maximizeButton}
+                onPress={() => {
+                  if (mapRef.current) {
+                    mapRef.current.animateToRegion({
+                      ...markerCoords,
+                      latitudeDelta: 0.004,
+                      longitudeDelta: 0.004,
+                    }, 500);
+                  }
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Maximize2 size={16} color="#64748b" />
+              </TouchableOpacity>
+            </MapErrorBoundary>
+          )}
+
+          {isGeocoding && (
+            <View style={styles.geocodingToast}>
+              <ActivityIndicator size="small" color="#ea580c" />
+              <Text style={styles.geocodingToastText}>Getting address...</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Instruction */}
+        <View style={styles.instructionContainer}>
+          <Text style={styles.instructionText}>
+            Search above, tap the map, or drag the red pin to select your location.
+          </Text>
+        </View>
+
+        {/* Footer Actions */}
+        <View style={styles.footer}>
+          <TouchableOpacity onPress={onClose} style={styles.cancelBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleConfirm} style={styles.confirmBtn}>
+            <Text style={styles.confirmBtnText}>Confirm Location</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     padding: 16,
+    zIndex: 9999,
+    elevation: 9999,
   },
   modalCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
     width: '100%',
     maxWidth: 360,
-    maxHeight: '85%',
     overflow: 'hidden',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
@@ -415,8 +421,7 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     width: '100%',
-    flex: 1,
-    minHeight: 300,
+    height: 300,
     backgroundColor: '#f8fafc',
     position: 'relative',
     overflow: 'hidden',
