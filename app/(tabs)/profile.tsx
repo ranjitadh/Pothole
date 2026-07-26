@@ -471,6 +471,12 @@ export default function ProfileScreen() {
                 <LogOut size={16} color="#ffffff" />
                 <Text style={styles.signOutSolidText}>Sign Out</Text>
               </TouchableOpacity>
+
+              <View style={[styles.disclaimerBox, isDark && styles.disclaimerBoxDark]}>
+                <Text style={[styles.disclaimerText, isDark && styles.disclaimerTextDark]}>
+                  Disclaimer: Pothole is an independent community app and is NOT affiliated with, endorsed by, or connected to any government entity, municipal authority, or official road maintenance organization. Reports made through this app are community-submitted and do not constitute official government reports or service requests. For official road complaints, please contact your local government office directly.
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -919,6 +925,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
     marginLeft: 8,
+  },
+  disclaimerBox: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+  },
+  disclaimerBoxDark: {
+    backgroundColor: '#1e293b',
+    borderColor: '#334155',
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: '#94a3b8',
+    lineHeight: 16,
+  },
+  disclaimerTextDark: {
+    color: '#64748b',
   },
   containerDark: {
     backgroundColor: '#0f172a',
