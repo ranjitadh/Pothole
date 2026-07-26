@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, Alert, StyleSheet, Share } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Alert, StyleSheet, Share, Linking } from 'react-native';
 import { MessageCircle, MoreHorizontal, MapPin, Flag, ShieldAlert, Trash2, ArrowUp, ArrowDown, Repeat, Forward } from 'lucide-react-native';
 import type { PostWithDetails } from '../types';
 import { useAuthStore } from '../store/auth-store';
@@ -32,6 +32,16 @@ export function PostCard({ post }: PostCardProps) {
       router.push({
         pathname: '/profile/[username]' as any,
         params: { username: post.author.username }
+      });
+    }
+  };
+
+  const handleLocationPress = () => {
+    if (post.location?.latitude != null && post.location?.longitude != null) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${post.location.latitude},${post.location.longitude}`;
+      Linking.openURL(url).catch((err) => {
+        console.warn('Failed to open Google Maps url:', err);
+        Alert.alert('Error', 'Unable to open Google Maps.');
       });
     }
   };
@@ -379,12 +389,18 @@ export function PostCard({ post }: PostCardProps) {
 
       {/* Location tag if attached */}
       {post.location && (
-        <View style={styles.locationTag}>
+        <TouchableOpacity 
+          style={styles.locationTag} 
+          onPress={handleLocationPress}
+          activeOpacity={0.7}
+        >
           <MapPin size={13} color="#ea580c" />
           <Text style={[styles.locationText, isDark && styles.locationTextDark]}>
-            {post.location.placeName || `${post.location.latitude.toFixed(4)}, ${post.location.longitude.toFixed(4)}`}
+            {post.location.placeName 
+              ? `${post.location.placeName} (${post.location.latitude.toFixed(4)}, ${post.location.longitude.toFixed(4)})` 
+              : `${post.location.latitude.toFixed(4)}, ${post.location.longitude.toFixed(4)}`}
           </Text>
-        </View>
+        </TouchableOpacity>
       )}
 
       {/* Content Text */}

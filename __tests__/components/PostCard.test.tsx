@@ -128,7 +128,7 @@ describe('PostCard Component', () => {
     const post = createMockPost();
     const { getByText } = render(<PostCard post={post} />);
 
-    expect(getByText('Ring Road, Kathmandu')).toBeTruthy();
+    expect(getByText('Ring Road, Kathmandu (27.7172, 85.3240)')).toBeTruthy();
   });
 
   it('renders coordinates when no placeName', () => {
