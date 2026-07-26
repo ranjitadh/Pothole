@@ -4,6 +4,24 @@ import MapView, { Marker } from 'react-native-maps';
 import { X, Search, Locate, Maximize2, MapPin } from 'lucide-react-native';
 import * as Location from 'expo-location';
 
+class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error) { console.warn('Map error:', error.message); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#f8fafc' }}>
+          <MapPin size={32} color="#ea580c" />
+          <Text style={{ color: '#64748b', fontWeight: '600', textAlign: 'center', marginTop: 8 }}>Map unavailable</Text>
+          <Text style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', marginTop: 4 }}>Use the search bar or locate button to set your location.</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 interface PinpointLocationModalProps {
   visible: boolean;
   onClose: () => void;
@@ -52,12 +70,10 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
           longitudeDelta: 0.008,
         };
         setRegion(newRegion);
-        // Animate map if already rendered
         if (mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
       } else {
-        // Fetch current coordinates automatically
         handleGetCurrentLocation();
       }
     }
@@ -66,20 +82,34 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
   const handleGetCurrentLocation = async () => {
     setIsLocating(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      let status = 'granted';
+      try {
+        const perm = await Location.requestForegroundPermissionsAsync();
+        status = perm.status;
+      } catch {
+        status = 'denied';
+      }
+
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required to pinpoint your location.');
         return;
       }
 
-      // Try last known cached position first (extremely fast and reliable fallback)
-      let current = await Location.getLastKnownPositionAsync({});
-      
+      let current: Location.LocationObject | null = null;
+      try {
+        current = await Location.getLastKnownPositionAsync();
+      } catch {
+        current = null;
+      }
+
       if (!current) {
-        // Fallback to getting current position with balanced accuracy
-        current = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
+        try {
+          current = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+        } catch {
+          current = null;
+        }
       }
 
       if (current) {
@@ -248,7 +278,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
                 <Text style={styles.webFallbackSubtitle}>Pinpoint map is optimized for iOS and Android emulator runtimes.</Text>
               </View>
             ) : (
-              <>
+              <MapErrorBoundary>
                 <MapView
                   ref={mapRef}
                   style={styles.map}
@@ -276,7 +306,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
                 >
                   <Maximize2 size={16} color="#64748b" />
                 </TouchableOpacity>
-              </>
+              </MapErrorBoundary>
             )}
             
             {isGeocoding && (

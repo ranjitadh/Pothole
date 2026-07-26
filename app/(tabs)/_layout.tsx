@@ -35,23 +35,17 @@ export default function TabLayout() {
           marginBottom: 2,
         },
         tabBarStyle: {
-          position: 'absolute',
-          bottom: insets.bottom > 0 ? insets.bottom : 12,
-          left: 20,
-          right: 20,
-          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-          borderWidth: 1,
-          borderBottomWidth: 1,
-          borderColor: isDark ? '#1e293b' : '#e2e8f0',
-          borderRadius: 24,
-          height: 64,
+          backgroundColor: isDark ? '#0f172a' : '#ffffff',
+          borderTopWidth: 1,
+          borderTopColor: isDark ? '#1e293b' : '#e2e8f0',
+          height: 64 + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 8,
+          paddingBottom: Math.max(insets.bottom, 8),
+          elevation: 8,
           shadowColor: '#000000',
-          shadowOffset: { width: 0, height: -4 },
+          shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.08,
-          shadowRadius: 12,
-          elevation: 5,
+          shadowRadius: 8,
         },
       }}
     >
@@ -101,7 +95,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   customButtonContainer: {
-    top: -10,
+    top: -18,
     justifyContent: 'center',
     alignItems: 'center',
   },
