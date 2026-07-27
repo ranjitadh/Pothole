@@ -53,6 +53,11 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
   const mountedRef = useRef(true);
   const insets = useSafeAreaInsets();
   const [mapReady, setMapReady] = useState(false);
+  // mapMounted gates MapView rendering. It is set true 50 ms after the overlay
+  // becomes visible so the Android native Surface completes its first layout
+  // pass before Fabric's MapRenderer tries to attach — prevents SIGSEGV on
+  // newArchEnabled=true (Fabric / New Architecture) builds.
+  const [mapMounted, setMapMounted] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
@@ -73,6 +78,20 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     });
     return () => handler.remove();
   }, [visible, onClose]);
+
+  // Deferred MapView mount — waits one rAF cycle after the overlay View is
+  // visible so the native Android Surface is ready before Fabric attaches
+  // the MapRenderer. Avoids SIGSEGV / Fatal signal 11 on Fabric builds.
+  useEffect(() => {
+    if (!visible) {
+      setMapMounted(false);
+      return;
+    }
+    const id = setTimeout(() => {
+      if (mountedRef.current) setMapMounted(true);
+    }, 50);
+    return () => clearTimeout(id);
+  }, [visible]);
 
   const safeSet = useCallback(<T,>(setter: (v: T) => void, value: T) => {
     if (mountedRef.current) setter(value);
@@ -258,12 +277,16 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     safeSet(setMapReady, true);
   }, [safeSet]);
 
-  if (!visible) return null;
-
+  // Do NOT return null when invisible — unmounting and remounting MapView
+  // in the same Fabric commit crashes on Android (newArchEnabled=true).
+  // Instead, hide with opacity + pointerEvents and defer MapView via mapMounted.
   const screenHeight = Dimensions.get('window').height;
 
   return (
-    <View style={styles.overlay}>
+    <View
+      style={[styles.overlay, !visible && styles.overlayHidden]}
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={[styles.modalCard, {
         maxHeight: screenHeight * 0.85,
@@ -318,7 +341,10 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
               <Text style={styles.webFallbackTitle}>Native Maps Unavailable</Text>
               <Text style={styles.webFallbackSubtitle}>Pinpoint map is optimized for iOS and Android.</Text>
             </View>
-          ) : (
+          ) : mapMounted ? (
+            // MapView only renders after the 50 ms deferred mount — by this
+            // point the Android Surface has completed its layout pass and
+            // Fabric can safely attach the MapRenderer without crashing.
             <MapErrorBoundary>
               <MapView
                 ref={mapRef}
@@ -359,6 +385,12 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
                 <Maximize2 size={16} color="#64748b" />
               </TouchableOpacity>
             </MapErrorBoundary>
+          ) : (
+            // Brief loading placeholder shown during the 50 ms deferred window.
+            // Never visible to the user in practice (sub-frame delay).
+            <View style={styles.mapLoadingContainer}>
+              <ActivityIndicator size="small" color="#ea580c" />
+            </View>
           )}
 
           {isGeocoding && (
@@ -401,6 +433,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 9999,
     elevation: 9999,
+  },
+  // Hides the overlay without unmounting it — critical for keeping MapView
+  // mounted across open/close cycles on Fabric/New Architecture Android.
+  overlayHidden: {
+    opacity: 0,
+  },
+  mapLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
   },
   backdrop: {
     ...StyleSheet.absoluteFill,

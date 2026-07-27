@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, Switch, TextInput, Modal, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, Switch, TextInput, Modal, Platform, AppState, AppStateStatus } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth-store';
 import { supabase } from '../../services/supabase';
-import { LogOut, Trash2, Bell, MapPin, Moon, Eye, EyeOff, Camera, Image as ImageIcon, AlignLeft, MoreHorizontal } from 'lucide-react-native';
+import { LogOut, Trash2, Bell, MapPin, Moon, Eye, EyeOff, Camera, Image as ImageIcon, AlignLeft, MoreHorizontal, Settings } from 'lucide-react-native';
 import { useThemeStore } from '../../store/theme-store';
 import { useColorScheme } from '../../components/useColorScheme';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadPhoto } from '../../services/post';
-import { registerForPushNotificationsAsync, sendTestPushNotification } from '../../services/notifications';
+import { openNotificationSettings } from '../../services/notifications';
+import { useNotificationStore } from '../../store/notification-store';
 async function deleteOldFile(url: string, bucket: string): Promise<void> {
   try {
     const urlObj = new URL(url);
@@ -33,7 +34,15 @@ export default function ProfileScreen() {
   const menuTop = insets.top + 56;
 
   const [deleting, setDeleting] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+
+  // Notification state — driven by notification-store (not local useState).
+  const {
+    effectiveEnabled: notificationsEnabled,
+    isToggling: notificationToggling,
+    isPermissionDenied,
+    toggle: toggleNotifications,
+    refreshPermissions,
+  } = useNotificationStore();
   const [locationEnabled, setLocationEnabled] = useState(true);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -144,20 +153,23 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleToggleNotifications = async (value: boolean) => {
-    if (value) {
-      const token = await registerForPushNotificationsAsync();
-      if (token) {
-        setNotificationsEnabled(true);
-        await sendTestPushNotification();
-        Alert.alert('Success', 'Push notifications enabled successfully! A test notification has been sent.');
-      } else {
-        setNotificationsEnabled(false);
-        Alert.alert('Permission Error', 'Could not enable push notifications. Please check your system settings permissions.');
+  // AppState listener: refresh notification permission status when the user
+  // returns from the device Settings app (e.g. after granting / revoking).
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  useEffect(() => {
+    if (!profile?.id) return;
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (appStateRef.current !== 'active' && nextState === 'active') {
+        refreshPermissions(profile.id);
       }
-    } else {
-      setNotificationsEnabled(false);
-    }
+      appStateRef.current = nextState;
+    });
+    return () => subscription.remove();
+  }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleToggleNotifications = () => {
+    if (!profile?.id) return;
+    toggleNotifications(profile.id);
   };
 
   const handleSignOut = () => {
@@ -367,10 +379,26 @@ export default function ProfileScreen() {
               <Switch
                 value={notificationsEnabled}
                 onValueChange={handleToggleNotifications}
+                disabled={notificationToggling}
                 trackColor={{ false: '#cbd5e1', true: '#ffedd5' }}
                 thumbColor={notificationsEnabled ? '#ea580c' : '#f8fafc'}
               />
             </View>
+
+            {/* Shown only when the OS has denied notification permission */}
+            {isPermissionDenied && (
+              <TouchableOpacity
+                onPress={openNotificationSettings}
+                style={[styles.openSettingsRow, isDark && styles.openSettingsRowDark]}
+                testID="open-notification-settings-btn"
+                activeOpacity={0.7}
+              >
+                <Settings size={14} color="#ea580c" style={{ marginRight: 6 }} />
+                <Text style={styles.openSettingsText}>
+                  Notifications are blocked — tap to open Settings
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={[styles.settingSeparator, isDark && styles.settingSeparatorDark]} />
 
@@ -813,6 +841,26 @@ const styles = StyleSheet.create({
   settingSeparator: {
     height: 1,
     backgroundColor: '#f3f4f6',
+  },
+  openSettingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#fff7ed',
+    borderTopWidth: 1,
+    borderTopColor: '#fed7aa',
+  },
+  openSettingsRowDark: {
+    backgroundColor: '#431407',
+    borderTopColor: '#7c2d12',
+  },
+  openSettingsText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ea580c',
+    flex: 1,
+    flexWrap: 'wrap',
   },
   accountCardTitle: {
     fontSize: 16,

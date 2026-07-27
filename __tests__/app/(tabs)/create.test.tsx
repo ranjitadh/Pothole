@@ -47,11 +47,22 @@ jest.mock('expo-location', () => ({
   ]),
 }));
 jest.mock('base-64', () => ({ decode: jest.fn(() => '') }));
+jest.mock('react-native-maps', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const MockMapView = (props: any) => React.createElement(View, props);
+  const MockMarker = (props: any) => React.createElement(View, props);
+  return { __esModule: true, default: MockMapView, Marker: MockMarker };
+});
 jest.mock('lucide-react-native', () => ({
   Camera: 'Camera',
   Image: 'Image',
   MapPin: 'MapPin',
   X: 'X',
+  // Icons used by PinpointLocationModal (always mounted as of crash fix)
+  Search: 'Search',
+  Locate: 'Locate',
+  Maximize2: 'Maximize2',
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),

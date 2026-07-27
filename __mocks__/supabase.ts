@@ -13,6 +13,7 @@ const mockSupabase = {
   from: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   insert: jest.fn().mockReturnThis(),
+  upsert: jest.fn().mockResolvedValue({ data: null, error: null }),
   update: jest.fn().mockReturnThis(),
   delete: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
@@ -44,6 +45,7 @@ const resetSupabaseMocks = () => {
   mockSupabase.from.mockReturnThis();
   mockSupabase.select.mockReturnThis();
   mockSupabase.insert.mockReturnThis();
+  mockSupabase.upsert.mockResolvedValue({ data: null, error: null });
   mockSupabase.update.mockReturnThis();
   mockSupabase.delete.mockReturnThis();
   mockSupabase.eq.mockReturnThis();

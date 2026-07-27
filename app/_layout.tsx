@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth-store';
+import { useNotificationStore } from '../store/notification-store';
 import { ActivityIndicator, View } from 'react-native';
 
 const queryClient = new QueryClient();
@@ -47,9 +48,18 @@ function RootLayoutNav({ fontsLoaded }: { fontsLoaded: boolean }) {
   const router = useRouter();
   const { user, isLoading, initialize } = useAuthStore();
 
+  const initializeNotifications = useNotificationStore((s) => s.initialize);
+
   useEffect(() => {
     initialize();
   }, []);
+
+  // Hydrate notification store as soon as we know who's logged in.
+  useEffect(() => {
+    if (user?.id) {
+      initializeNotifications(user.id);
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (fontsLoaded && !isLoading) {
