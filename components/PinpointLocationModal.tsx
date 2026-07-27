@@ -108,13 +108,9 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
       const lng = Number(initialLocation.longitude);
       if (isValidCoordinate(lat, lng)) {
         const coords = { latitude: lat, longitude: lng };
-        const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
         safeSet(setMarkerCoords, coords);
         safeSet(setPlaceName, initialLocation.placeName || '');
         safeSet(setSearchText, initialLocation.placeName || '');
-        if (mapRef.current) {
-          mapRef.current.animateToRegion(newRegion, 500);
-        }
       } else {
         handleGetCurrentLocation();
       }
@@ -123,9 +119,35 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     }
   }, [visible]);
 
+  // Animate to region once the map is ready and visible
+  useEffect(() => {
+    if (visible && mapReady && mapRef.current) {
+      const lat = initialLocation?.latitude != null ? Number(initialLocation.latitude) : markerCoords.latitude;
+      const lng = initialLocation?.longitude != null ? Number(initialLocation.longitude) : markerCoords.longitude;
+      if (isValidCoordinate(lat, lng)) {
+        mapRef.current.animateToRegion({
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        }, 500);
+      }
+    }
+  }, [visible, mapReady]);
+
   const handleGetCurrentLocation = useCallback(async () => {
     safeSet(setIsLocating, true);
     try {
+      const servicesEnabled = await Location.hasServicesEnabledAsync();
+      if (!servicesEnabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'GPS is disabled. Please enable Location Services in your system settings to fetch your current coordinates.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       let status = 'granted';
       try {
         const perm = await Location.requestForegroundPermissionsAsync();
@@ -166,7 +188,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
         const coords = { latitude: lat, longitude: lng };
         const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
         safeSet(setMarkerCoords, coords);
-        if (mapRef.current) {
+        if (mapReady && mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
         await reverseGeocode(lat, lng);
@@ -179,7 +201,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     } finally {
       safeSet(setIsLocating, false);
     }
-  }, [safeSet]);
+  }, [safeSet, mapReady]);
 
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     safeSet(setIsGeocoding, true);
@@ -228,7 +250,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
         const coords = { latitude: lat, longitude: lng };
         const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
         safeSet(setMarkerCoords, coords);
-        if (mapRef.current) {
+        if (mapReady && mapRef.current) {
           mapRef.current.animateToRegion(newRegion, 500);
         }
         await reverseGeocode(lat, lng);
@@ -240,7 +262,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
     } finally {
       safeSet(setIsSearching, false);
     }
-  }, [searchText, safeSet, reverseGeocode]);
+  }, [searchText, safeSet, reverseGeocode, mapReady]);
 
   const handleMapPress = useCallback((e: any) => {
     const coords = e?.nativeEvent?.coordinate;
@@ -372,7 +394,7 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
               <TouchableOpacity
                 style={styles.maximizeButton}
                 onPress={() => {
-                  if (mapRef.current) {
+                  if (mapReady && mapRef.current) {
                     mapRef.current.animateToRegion({
                       ...markerCoords,
                       latitudeDelta: 0.004,

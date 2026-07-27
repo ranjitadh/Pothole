@@ -8,8 +8,11 @@ import { PostCard } from '../../components/PostCard';
 import type { PostWithDetails } from '../../types';
 import { useColorScheme } from '../../components/useColorScheme';
 
+import { useRouter } from 'expo-router';
+
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { profile } = useAuthStore();
   const theme = useColorScheme();
   const isDark = theme === 'dark';
@@ -58,7 +61,20 @@ export default function SearchScreen() {
   }, [searchQuery]);
 
   const renderUserItem = ({ item }: { item: any }) => (
-    <View style={[styles.userRow, isDark && styles.userRowDark]}>
+    <TouchableOpacity 
+      style={[styles.userRow, isDark && styles.userRowDark]}
+      activeOpacity={0.7}
+      onPress={() => {
+        if (profile?.username === item.username) {
+          router.push('/(tabs)/profile');
+        } else {
+          router.push({
+            pathname: '/profile/[username]' as any,
+            params: { username: item.username }
+          });
+        }
+      }}
+    >
       <View style={styles.userRowLeft}>
         {item.avatar_url ? (
           <Image source={{ uri: item.avatar_url }} style={styles.userAvatar} />
@@ -75,7 +91,7 @@ export default function SearchScreen() {
         </View>
       </View>
       <Text style={[styles.userFollowers, isDark && styles.userFollowersDark]}>{item.followers_count ?? 0} followers</Text>
-    </View>
+    </TouchableOpacity>
   );
 
   const renderHashtagItem = ({ item }: { item: any }) => (

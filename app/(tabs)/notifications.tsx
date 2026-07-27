@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, ActivityIndicator, StyleSheet, RefreshControl, Platform } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, StyleSheet, RefreshControl, Platform, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useColorScheme } from '../../components/useColorScheme';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../services/supabase';
@@ -9,6 +10,19 @@ import { Bell } from 'lucide-react-native';
 export default function NotificationsScreen() {
   const theme = useColorScheme();
   const isDark = theme === 'dark';
+  const router = useRouter();
+
+  const handleNotificationPress = (item: any) => {
+    const targetPostId = item.post_id || item.postId;
+    if ((item.type === 'like' || item.type === 'comment') && targetPostId) {
+      router.push({
+        pathname: '/post/[id]' as any,
+        params: { id: targetPostId }
+      });
+    } else if (item.type === 'follow' && item.actor?.username) {
+      router.push(`/profile/${item.actor.username}`);
+    }
+  };
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['notifications'],
@@ -63,7 +77,12 @@ export default function NotificationsScreen() {
           />
         }
         renderItem={({ item }) => (
-          <View style={[styles.notificationRow, isDark && styles.notificationRowDark]}>
+          <TouchableOpacity 
+            onPress={() => handleNotificationPress(item)}
+            activeOpacity={0.7}
+            style={[styles.notificationRow, isDark && styles.notificationRowDark]}
+            testID={`notification-item-${item.id}`}
+          >
             <View style={[styles.iconWrapper, isDark && styles.iconWrapperDark]}>
               <Bell size={18} color="#ea580c" />
             </View>
@@ -80,7 +99,7 @@ export default function NotificationsScreen() {
                 {new Date(item.created_at).toLocaleDateString()}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>

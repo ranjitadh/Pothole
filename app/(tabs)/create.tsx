@@ -16,12 +16,16 @@ export default function CreateScreen() {
   const isDark = theme === 'dark';
 
   const [text, setText] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageUris, setImageUris] = useState<string[]>([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number; placeName?: string } | null>(null);
   const [isMapModalVisible, setIsMapModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleTakePhoto = async () => {
+    if (imageUris.length >= 5) {
+      Alert.alert('Limit Reached', 'You can select up to 5 images for a report.');
+      return;
+    }
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'Camera permission is required to take a photo.');
@@ -35,12 +39,16 @@ export default function CreateScreen() {
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets.length > 0) {
-      setImageUri(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setImageUris(prev => [...prev, result.assets[0].uri].slice(0, 5));
     }
   };
 
   const handleSelectPhoto = async () => {
+    if (imageUris.length >= 5) {
+      Alert.alert('Limit Reached', 'You can select up to 5 images for a report.');
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'Photo library permission is required to select a photo.');
@@ -49,33 +57,44 @@ export default function CreateScreen() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
+      allowsMultipleSelection: true,
+      selectionLimit: 5 - imageUris.length,
       quality: 0.8,
     });
 
-    if (!result.canceled && result.assets.length > 0) {
-      setImageUri(result.assets[0].uri);
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const newUris = result.assets.map(a => a.uri);
+      setImageUris(prev => [...prev, ...newUris].slice(0, 5));
     }
   };
 
   const handleSubmit = async () => {
-    if (!text && !imageUri) {
+    if (!text.trim() && imageUris.length === 0) {
       Alert.alert('Error', 'Please write a description or attach a photo.');
       return;
     }
 
     setIsLoading(true);
     try {
-      let uploadedUrl: string | undefined = undefined;
-      if (imageUri) {
-        uploadedUrl = await uploadPhoto(imageUri);
+      const uploadedUrls: string[] = [];
+      for (const uri of imageUris) {
+        try {
+          const url = await uploadPhoto(uri);
+          uploadedUrls.push(url);
+        } catch (err: any) {
+          Alert.alert(
+            'Upload Failed',
+            `Failed to upload one of the images. Your draft description has not been lost. Please try submitting again.\nError: ${err.message || err}`
+          );
+          setIsLoading(false);
+          return;
+        }
       }
 
       await createPost({
         text: text.trim() || undefined,
         visibility: 'public',
-        media: uploadedUrl ? [{ url: uploadedUrl, type: 'image' }] : undefined,
+        media: uploadedUrls.map(url => ({ url, type: 'image' })),
         location: location ? {
           latitude: location.latitude,
           longitude: location.longitude,
@@ -88,7 +107,7 @@ export default function CreateScreen() {
           text: 'OK',
           onPress: () => {
             setText('');
-            setImageUri(null);
+            setImageUris([]);
             setLocation(null);
             queryClient.invalidateQueries({ queryKey: ['feed'] });
             router.push('/(tabs)');
@@ -136,16 +155,24 @@ export default function CreateScreen() {
             </View>
           )}
 
-          {imageUri && (
-            <View style={[styles.imagePreviewContainer, isDark && styles.imagePreviewContainerDark]}>
-              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-              <TouchableOpacity 
-                style={styles.removeImageBtn}
-                onPress={() => setImageUri(null)}
-              >
-                <X size={16} color="white" />
-              </TouchableOpacity>
-            </View>
+          {imageUris.length > 0 && (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false} 
+              style={styles.previewsContainer}
+            >
+              {imageUris.map((uri, index) => (
+                <View key={uri + index} style={[styles.imagePreviewContainer, isDark && styles.imagePreviewContainerDark]}>
+                  <Image source={{ uri }} style={styles.imagePreview} />
+                  <TouchableOpacity 
+                    style={styles.removeImageBtn}
+                    onPress={() => setImageUris(prev => prev.filter((_, idx) => idx !== index))}
+                  >
+                    <X size={14} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
           )}
 
           {/* Action Row */}
@@ -263,14 +290,19 @@ const styles = StyleSheet.create({
   removeBtn: {
     padding: 2,
   },
+  previewsContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    height: 104,
+  },
   imagePreviewContainer: {
     position: 'relative',
-    width: '100%',
-    height: 192,
+    width: 100,
+    height: 100,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f1f5f9',
-    marginBottom: 16,
+    marginRight: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },

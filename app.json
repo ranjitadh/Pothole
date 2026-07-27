@@ -2,7 +2,7 @@
   "expo": {
     "name": "Pothole",
     "slug": "PotholeReactNative",
-    "version": "5.2.0",
+    "version": "5.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pothole",
@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.pothole.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

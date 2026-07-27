@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, Alert, StyleSheet, Share, Linking } from 'react-native';
-import { MessageCircle, MoreHorizontal, MapPin, Flag, ShieldAlert, Trash2, ArrowUp, ArrowDown, Repeat, Forward } from 'lucide-react-native';
+import { View, Text, Image, TouchableOpacity, Alert, StyleSheet, Share, Linking, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MessageCircle, MoreHorizontal, MapPin, Flag, ShieldAlert, Trash2, ArrowUp, ArrowDown, Repeat, Forward, X } from 'lucide-react-native';
 import type { PostWithDetails } from '../types';
 import { useAuthStore } from '../store/auth-store';
 import { likePost, unlikePost, savePost, unsavePost, deletePost, blockUser, updatePostStatus, reportPost, repostPost } from '../services/post';
@@ -24,6 +25,7 @@ export function PostCard({ post }: PostCardProps) {
   const [isSaved, setIsSaved] = useState(post.isSaved);
   const [showMenu, setShowMenu] = useState(false);
   const [isCommentsVisible, setIsCommentsVisible] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleProfilePress = () => {
     if (user?.id === post.userId) {
@@ -268,6 +270,85 @@ export function PostCard({ post }: PostCardProps) {
     resolved: 'Resolved',
   };
 
+  const handlePostPress = () => {
+    router.push({
+      pathname: '/post/[id]' as any,
+      params: { id: post.id }
+    });
+  };
+
+  const renderMedia = () => {
+    if (!post.media || post.media.length === 0) return null;
+    
+    const media = post.media;
+    const count = media.length;
+
+    if (count === 1) {
+      return (
+        <TouchableOpacity onPress={handlePostPress} activeOpacity={0.9} style={{ marginBottom: 12 }}>
+          <Image
+            source={{ uri: media[0].url }}
+            style={[styles.postImage, isDark && styles.postImageDark]}
+          />
+        </TouchableOpacity>
+      );
+    }
+
+    if (count === 2) {
+      return (
+        <TouchableOpacity onPress={handlePostPress} activeOpacity={0.9} style={[styles.collageContainer, { marginBottom: 12 }]}>
+          <View style={styles.collageRow}>
+            <Image source={{ uri: media[0].url }} style={styles.collageHalfImage} />
+            <View style={{ width: 4 }} />
+            <Image source={{ uri: media[1].url }} style={styles.collageHalfImage} />
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    if (count === 3) {
+      return (
+        <TouchableOpacity onPress={handlePostPress} activeOpacity={0.9} style={[styles.collageContainer, { marginBottom: 12 }]}>
+          <View style={styles.collageRow}>
+            <Image source={{ uri: media[0].url }} style={styles.collageMainImage} />
+            <View style={{ width: 4 }} />
+            <View style={styles.collageSideCol}>
+              <Image source={{ uri: media[1].url }} style={styles.collageSideImage} />
+              <View style={{ height: 4 }} />
+              <Image source={{ uri: media[2].url }} style={styles.collageSideImage} />
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    // 4 or more images
+    return (
+      <TouchableOpacity onPress={handlePostPress} activeOpacity={0.9} style={[styles.collageContainer, { marginBottom: 12 }]}>
+        <View style={styles.collageGrid}>
+          <View style={styles.collageRow}>
+            <Image source={{ uri: media[0].url }} style={styles.collageQuarterImage} />
+            <View style={{ width: 4 }} />
+            <Image source={{ uri: media[1].url }} style={styles.collageQuarterImage} />
+          </View>
+          <View style={{ height: 4 }} />
+          <View style={styles.collageRow}>
+            <Image source={{ uri: media[2].url }} style={styles.collageQuarterImage} />
+            <View style={{ width: 4 }} />
+            <View style={styles.collageQuarterImageContainer}>
+              <Image source={{ uri: media[3].url }} style={styles.collageQuarterImage} />
+              {count > 4 && (
+                <View style={styles.collageOverlay}>
+                  <Text style={styles.collageOverlayText}>+{count - 3}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View 
       style={[
@@ -309,81 +390,94 @@ export function PostCard({ post }: PostCardProps) {
             <MoreHorizontal size={18} color={isDark ? '#cbd5e1' : '#64748b'} />
           </TouchableOpacity>
 
-          {/* Floating actions menu */}
-          {showMenu && (
-            <View style={[styles.menuContainer, isDark && styles.menuContainerDark]}>
-              {isOwnPost ? (
-                <>
-                  {post.status !== 'unresolved' && (
+          {/* Bottom sheet actions menu */}
+          <Modal
+            visible={showMenu}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowMenu(false)}
+          >
+            <View style={styles.sheetOverlay}>
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                activeOpacity={1}
+                onPress={() => setShowMenu(false)}
+              />
+              <View style={[
+                styles.sheetContent,
+                isDark && styles.sheetContentDark,
+                { paddingBottom: Math.max(insets.bottom, 16) }
+              ]}>
+                <View style={styles.sheetHeaderIndicator} />
+                <Text style={[styles.sheetTitle, isDark && styles.sheetTitleDark]}>Post Options</Text>
+                
+                {isOwnPost ? (
+                  <>
+                    {post.status !== 'unresolved' && (
+                      <TouchableOpacity 
+                        onPress={() => handleUpdateStatus('unresolved')} 
+                        style={styles.sheetItem}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.bulletDot, styles.bulletAmber]} />
+                        <Text style={[styles.sheetItemText, isDark && styles.textLight]}>Mark Unresolved</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity 
-                      onPress={() => handleUpdateStatus('unresolved')} 
-                      style={styles.menuItem}
+                      onPress={() => handleUpdateStatus('in_progress')} 
+                      style={styles.sheetItem}
                       activeOpacity={0.7}
                     >
-                      <View style={[styles.bulletDot, styles.bulletAmber]} />
-                      <Text style={[styles.menuText, isDark && styles.menuTextDark]}>Mark Unresolved</Text>
+                      <View style={[styles.bulletDot, styles.bulletBlue]} />
+                      <Text style={[styles.sheetItemText, isDark && styles.textLight]}>Mark In Progress</Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity 
-                    onPress={() => handleUpdateStatus('in_progress')} 
-                    style={styles.menuItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.bulletDot, styles.bulletBlue]} />
-                    <Text style={[styles.menuText, isDark && styles.menuTextDark]}>Mark In Progress</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    onPress={() => handleUpdateStatus('resolved')} 
-                    style={styles.menuItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.bulletDot, styles.bulletEmerald]} />
-                    <Text style={[styles.menuText, isDark && styles.menuTextDark]}>Mark Resolved</Text>
-                  </TouchableOpacity>
-                  
-                  <View style={[styles.menuItemSeparator, isDark && styles.menuItemSeparatorDark]} />
-                  
-                  <TouchableOpacity 
-                    onPress={handleDelete} 
-                    style={styles.menuItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.iconWrapper}>
-                      <Trash2 size={16} color="#ef4444" />
-                    </View>
-                    <Text style={[styles.menuText, styles.menuTextDanger]}>Delete Post</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity 
-                    onPress={handleReportPost} 
-                    style={styles.menuItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.iconWrapper}>
-                      <Flag size={16} color={isDark ? '#cbd5e1' : '#64748b'} />
-                    </View>
-                    <Text style={[styles.menuText, isDark && styles.menuTextDark]}>Report</Text>
-                  </TouchableOpacity>
-                  
-                  <View style={[styles.menuItemSeparator, isDark && styles.menuItemSeparatorDark]} />
-                  
-                  <TouchableOpacity 
-                    onPress={handleBlockUser} 
-                    style={styles.menuItem}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.iconWrapper}>
-                      <ShieldAlert size={16} color="#ef4444" />
-                    </View>
-                    <Text style={[styles.menuText, styles.menuTextDanger]}>Block User</Text>
-                  </TouchableOpacity>
-                </>
-              )}
+                    
+                    <TouchableOpacity 
+                      onPress={() => handleUpdateStatus('resolved')} 
+                      style={styles.sheetItem}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.bulletDot, styles.bulletEmerald]} />
+                      <Text style={[styles.sheetItemText, isDark && styles.textLight]}>Mark Resolved</Text>
+                    </TouchableOpacity>
+                    
+                    <View style={[styles.sheetSeparator, isDark && styles.sheetSeparatorDark]} />
+                    
+                    <TouchableOpacity 
+                      onPress={handleDelete} 
+                      style={styles.sheetItem}
+                      activeOpacity={0.7}
+                    >
+                      <Trash2 size={18} color="#ef4444" style={{ marginRight: 12 }} />
+                      <Text style={[styles.sheetItemText, styles.menuTextDanger]}>Delete Post</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      onPress={handleReportPost} 
+                      style={styles.sheetItem}
+                      activeOpacity={0.7}
+                    >
+                      <Flag size={18} color={isDark ? '#cbd5e1' : '#64748b'} style={{ marginRight: 12 }} />
+                      <Text style={[styles.sheetItemText, isDark && styles.textLight]}>Report</Text>
+                    </TouchableOpacity>
+                    
+                    <View style={[styles.sheetSeparator, isDark && styles.sheetSeparatorDark]} />
+                    
+                    <TouchableOpacity 
+                      onPress={handleBlockUser} 
+                      style={styles.sheetItem}
+                      activeOpacity={0.7}
+                    >
+                      <ShieldAlert size={18} color="#ef4444" style={{ marginRight: 12 }} />
+                      <Text style={[styles.sheetItemText, styles.menuTextDanger]}>Block User</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
             </View>
-          )}
+          </Modal>
         </View>
       </View>
 
@@ -405,16 +499,13 @@ export function PostCard({ post }: PostCardProps) {
 
       {/* Content Text */}
       {post.text && (
-        <Text style={[styles.contentText, isDark && styles.contentTextDark]}>{post.text}</Text>
+        <TouchableOpacity onPress={handlePostPress} activeOpacity={0.8} style={{ marginBottom: 12 }}>
+          <Text style={[styles.contentText, isDark && styles.contentTextDark]}>{post.text}</Text>
+        </TouchableOpacity>
       )}
 
-      {/* Media Image Gallery */}
-      {post.media && post.media.length > 0 && (
-        <Image
-          source={{ uri: post.media[0].url }}
-          style={[styles.postImage, isDark && styles.postImageDark]}
-        />
-      )}
+      {/* Media Image Gallery/Collage */}
+      {renderMedia()}
 
       {/* Divider */}
       <View style={[styles.divider, isDark && styles.dividerDark]} />
@@ -633,46 +724,65 @@ const styles = StyleSheet.create({
   capsuleIconBtn: {
     padding: 2,
   },
-  menuContainer: {
-    position: 'absolute',
-    right: 0,
-    top: 32,
-    zIndex: 100,
-    width: 172,
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  sheetContent: {
     backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingVertical: 6,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
   },
-  menuContainerDark: {
+  sheetContentDark: {
     backgroundColor: '#1e293b',
-    borderColor: '#334155',
   },
-  menuItem: {
+  sheetHeaderIndicator: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#cbd5e1',
+    marginBottom: 16,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  sheetTitleDark: {
+    color: '#f8fafc',
+  },
+  sheetItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 14,
   },
-  menuItemSeparator: {
+  sheetItemText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  sheetSeparator: {
     height: 1,
     backgroundColor: '#f1f5f9',
     marginVertical: 4,
   },
-  menuItemSeparatorDark: {
+  sheetSeparatorDark: {
     backgroundColor: '#334155',
+  },
+  textLight: {
+    color: '#f8fafc',
   },
   bulletDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 10,
+    marginRight: 12,
   },
   bulletAmber: {
     backgroundColor: '#f59e0b',
@@ -683,19 +793,60 @@ const styles = StyleSheet.create({
   bulletEmerald: {
     backgroundColor: '#10b981',
   },
-  iconWrapper: {
-    marginRight: 8,
-  },
-  menuText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  menuTextDark: {
-    color: '#f8fafc',
-  },
   menuTextDanger: {
     color: '#ef4444',
+  },
+  collageContainer: {
+    width: '100%',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  collageRow: {
+    flexDirection: 'row',
+    height: 200,
+    width: '100%',
+  },
+  collageHalfImage: {
+    flex: 1,
+    height: '100%',
+  },
+  collageMainImage: {
+    flex: 1.5,
+    height: '100%',
+  },
+  collageSideCol: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'column',
+  },
+  collageSideImage: {
+    flex: 1,
+    width: '100%',
+  },
+  collageGrid: {
+    width: '100%',
+    height: 240,
+    flexDirection: 'column',
+  },
+  collageQuarterImage: {
+    flex: 1,
+    height: '100%',
+  },
+  collageQuarterImageContainer: {
+    flex: 1,
+    position: 'relative',
+    height: '100%',
+  },
+  collageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  collageOverlayText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '800',
   },
 });
 

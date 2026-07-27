@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, Switch, TextInput, Modal, Platform, AppState, AppStateStatus } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, ActivityIndicator, Alert, StyleSheet, Switch, TextInput, Modal, Platform, AppState, AppStateStatus, Keyboard, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/auth-store';
 import { supabase } from '../../services/supabase';
-import { LogOut, Trash2, Bell, MapPin, Moon, Eye, EyeOff, Camera, Image as ImageIcon, AlignLeft, MoreHorizontal, Settings } from 'lucide-react-native';
+import { LogOut, Trash2, Bell, MapPin, Moon, Eye, EyeOff, Camera, Image as ImageIcon, AlignLeft, MoreHorizontal, Settings, Pencil } from 'lucide-react-native';
 import { useThemeStore } from '../../store/theme-store';
 import { useColorScheme } from '../../components/useColorScheme';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,7 +26,7 @@ async function deleteOldFile(url: string, bucket: string): Promise<void> {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, signOut, refreshProfile } = useAuthStore();
+  const { profile, user, signOut, refreshProfile } = useAuthStore();
   const { themeMode, setThemeMode } = useThemeStore();
   const theme = useColorScheme();
   const isDark = theme === 'dark';
@@ -44,14 +44,27 @@ export default function ProfileScreen() {
     refreshPermissions,
   } = useNotificationStore();
   const [locationEnabled, setLocationEnabled] = useState(true);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    };
+  }, []);
+
   const [isBioModalVisible, setIsBioModalVisible] = useState(false);
   const [bioText, setBioText] = useState('');
   const [updatingBio, setUpdatingBio] = useState(false);
+
+  const [isNameModalVisible, setIsNameModalVisible] = useState(false);
+  const [displayNameText, setDisplayNameText] = useState('');
+  const [updatingName, setUpdatingName] = useState(false);
   const [updatingAvatar, setUpdatingAvatar] = useState(false);
   const [updatingCover, setUpdatingCover] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -153,6 +166,29 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleUpdateName = async () => {
+    if (!displayNameText.trim()) {
+      Alert.alert('Error', 'Display name cannot be empty.');
+      return;
+    }
+    setUpdatingName(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: displayNameText.trim() })
+        .eq('id', profile?.id);
+
+      if (error) throw error;
+      await refreshProfile();
+      setIsNameModalVisible(false);
+      Alert.alert('Success', 'Name updated successfully!');
+    } catch (err: any) {
+      Alert.alert('Update Failed', err.message || 'Could not update name.');
+    } finally {
+      setUpdatingName(false);
+    }
+  };
+
   // AppState listener: refresh notification permission status when the user
   // returns from the device Settings app (e.g. after granting / revoking).
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
@@ -206,12 +242,16 @@ export default function ProfileScreen() {
   };
 
   const handleUpdatePassword = async () => {
+    if (!currentPassword.trim()) {
+      Alert.alert('Error', 'Please enter your current password.');
+      return;
+    }
     if (!newPassword.trim()) {
       Alert.alert('Error', 'Please enter a new password.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match.');
+      Alert.alert('Error', 'New passwords do not match.');
       return;
     }
     if (newPassword.length < 6) {
@@ -221,9 +261,25 @@ export default function ProfileScreen() {
 
     setUpdatingPassword(true);
     try {
+      const email = user?.email;
+      if (!email) throw new Error('User email not found. Please log in again.');
+
+      // Re-authenticate user by signing in again
+      const { error: reauthErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+
+      if (reauthErr) {
+        throw new Error('Verification failed. Invalid current password.');
+      }
+
+      // Update password
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      Alert.alert('Password Updated', 'Your password has been changed successfully.');
+
+      Alert.alert('Success', 'Your password has been changed successfully.');
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -339,7 +395,20 @@ export default function ProfileScreen() {
           />
 
           <View style={styles.infoContainer}>
-            <Text style={[styles.displayName, isDark && styles.displayNameDark]}>{profile.displayName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Text style={[styles.displayName, isDark && styles.displayNameDark]}>{profile.displayName}</Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  setDisplayNameText(profile.displayName || '');
+                  setIsNameModalVisible(true);
+                }}
+                style={{ marginLeft: 6, padding: 4 }}
+                testID="edit-name-button"
+                accessibilityLabel="Edit display name"
+              >
+                <Pencil size={14} color="#ea580c" />
+              </TouchableOpacity>
+            </View>
             <Text style={[styles.username, isDark && styles.usernameDark]}>@{profile.username}</Text>
             {profile.bio && <Text style={[styles.bio, isDark && styles.bioDark]}>{profile.bio}</Text>}
           </View>
@@ -438,46 +507,69 @@ export default function ProfileScreen() {
             
             <Text style={[styles.changePasswordTitle, isDark && styles.changePasswordTitleDark]}>Change Password</Text>
 
-            <Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>New Password</Text>
-            <View style={[styles.passwordInputContainer, isDark && styles.passwordInputContainerDark]}>
-              <TextInput
-                style={[styles.passwordInput, isDark && styles.passwordInputDark]}
-                placeholder="Enter new password"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry={!showPassword}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                autoCapitalize="none"
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
-                {showPassword ? <EyeOff size={16} color="#64748b" /> : <Eye size={16} color="#64748b" />}
-              </TouchableOpacity>
-            </View>
+            {(!user?.app_metadata?.provider || user.app_metadata.provider === 'email' || user.identities?.some((i: any) => i.provider === 'email')) ? (
+              <>
+                <Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>Current Password</Text>
+                <View style={[styles.passwordInputContainer, isDark && styles.passwordInputContainerDark]}>
+                  <TextInput
+                    style={[styles.passwordInput, isDark && styles.passwordInputDark]}
+                    placeholder="Enter current password"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry={!showPassword}
+                    value={currentPassword}
+                    onChangeText={setCurrentPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                    {showPassword ? <EyeOff size={16} color="#64748b" /> : <Eye size={16} color="#64748b" />}
+                  </TouchableOpacity>
+                </View>
 
-            <Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>Confirm New Password</Text>
-            <View style={[styles.passwordInputContainer, isDark && styles.passwordInputContainerDark]}>
-              <TextInput
-                style={[styles.passwordInput, isDark && styles.passwordInputDark]}
-                placeholder="Confirm new password"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry={!showPassword}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                autoCapitalize="none"
-              />
-            </View>
+                <Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>New Password</Text>
+                <View style={[styles.passwordInputContainer, isDark && styles.passwordInputContainerDark]}>
+                  <TextInput
+                    style={[styles.passwordInput, isDark && styles.passwordInputDark]}
+                    placeholder="Enter new password"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry={!showPassword}
+                    value={newPassword}
+                    onChangeText={setNewPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
 
-            <TouchableOpacity 
-              onPress={handleUpdatePassword}
-              disabled={updatingPassword}
-              style={[styles.updatePasswordButton, isDark && styles.updatePasswordButtonDark]}
-            >
-              {updatingPassword ? (
-                <ActivityIndicator size="small" color="#64748b" />
-              ) : (
-                <Text style={[styles.updatePasswordText, isDark && styles.updatePasswordTextDark]}>Update Password</Text>
-              )}
-            </TouchableOpacity>
+                <Text style={[styles.inputLabel, isDark && styles.inputLabelDark]}>Confirm New Password</Text>
+                <View style={[styles.passwordInputContainer, isDark && styles.passwordInputContainerDark]}>
+                  <TextInput
+                    style={[styles.passwordInput, isDark && styles.passwordInputDark]}
+                    placeholder="Confirm new password"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry={!showPassword}
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <TouchableOpacity 
+                  onPress={handleUpdatePassword}
+                  disabled={updatingPassword}
+                  style={[styles.updatePasswordButton, isDark && styles.updatePasswordButtonDark]}
+                >
+                  {updatingPassword ? (
+                    <ActivityIndicator size="small" color="#64748b" />
+                  ) : (
+                    <Text style={[styles.updatePasswordText, isDark && styles.updatePasswordTextDark]}>Update Password</Text>
+                  )}
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={{ marginTop: 8, marginBottom: 16 }}>
+                <Text style={[{ fontSize: 13, color: '#64748b', lineHeight: 18 }, isDark && styles.textLight]}>
+                  Password settings are managed by your login provider (Google/OAuth).
+                </Text>
+              </View>
+            )}
 
             <View style={[styles.accountCardSeparator, isDark && styles.accountCardSeparatorDark]} />
 
@@ -499,12 +591,12 @@ export default function ProfileScreen() {
                 <LogOut size={16} color="#ffffff" />
                 <Text style={styles.signOutSolidText}>Sign Out</Text>
               </TouchableOpacity>
+            </View>
 
-              <View style={[styles.disclaimerBox, isDark && styles.disclaimerBoxDark]}>
-                <Text style={[styles.disclaimerText, isDark && styles.disclaimerTextDark]}>
-                  Disclaimer: Pothole is an independent community app and is NOT affiliated with, endorsed by, or connected to any government entity, municipal authority, or official road maintenance organization. Reports made through this app are community-submitted and do not constitute official government reports or service requests. For official road complaints, please contact your local government office directly.
-                </Text>
-              </View>
+            <View style={[styles.disclaimerBox, isDark && styles.disclaimerBoxDark]}>
+              <Text style={[styles.disclaimerText, isDark && styles.disclaimerTextDark]}>
+                Disclaimer: Pothole is an independent community app and is NOT affiliated with, endorsed by, or connected to any government entity, municipal authority, or official road maintenance organization. Reports made through this app are community-submitted and do not constitute official government reports or service requests. For official road complaints, please contact your local government office directly.
+              </Text>
             </View>
           </View>
         </View>
@@ -515,53 +607,134 @@ export default function ProfileScreen() {
         visible={isBioModalVisible}
         animationType="fade"
         transparent={true}
-        onRequestClose={() => setIsBioModalVisible(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setIsBioModalVisible(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setIsBioModalVisible(false)}
-          />
-          <View style={[styles.bioModalContent, isDark && styles.bioModalContentDark]}>
-            <Text style={[styles.bioModalTitle, isDark && styles.textLight]}>Update Bio</Text>
-            
-            <TextInput
-              style={[
-                styles.bioInput,
-                isDark && styles.bioInputDark,
-                { color: isDark ? '#f8fafc' : '#0f172a' }
-              ]}
-              placeholder="Tell us about yourself..."
-              placeholderTextColor="#94a3b8"
-              value={bioText}
-              onChangeText={setBioText}
-              maxLength={160}
-              multiline
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => {
+                Keyboard.dismiss();
+                setIsBioModalVisible(false);
+              }}
             />
-            
-            <View style={styles.bioModalButtons}>
-              <TouchableOpacity 
-                onPress={() => setIsBioModalVisible(false)} 
-                style={styles.bioCancelBtn}
-              >
-                <Text style={styles.bioCancelText}>Cancel</Text>
-              </TouchableOpacity>
+            <View style={[styles.bioModalContent, isDark && styles.bioModalContentDark]}>
+              <Text style={[styles.bioModalTitle, isDark && styles.textLight]}>Update Bio</Text>
+              
+              <TextInput
+                style={[
+                  styles.bioInput,
+                  isDark && styles.bioInputDark,
+                  { color: isDark ? '#f8fafc' : '#0f172a' }
+                ]}
+                placeholder="Tell us about yourself..."
+                placeholderTextColor="#94a3b8"
+                value={bioText}
+                onChangeText={setBioText}
+                maxLength={160}
+                multiline
+              />
+              
+              <View style={styles.bioModalButtons}>
+                <TouchableOpacity 
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setIsBioModalVisible(false);
+                  }} 
+                  style={styles.bioCancelBtn}
+                >
+                  <Text style={styles.bioCancelText}>Cancel</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity 
-                onPress={handleUpdateBio} 
-                disabled={updatingBio}
-                style={styles.bioSaveBtn}
-              >
-                {updatingBio ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={styles.bioSaveText}>Save</Text>
-                )}
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={handleUpdateBio} 
+                  disabled={updatingBio}
+                  style={styles.bioSaveBtn}
+                >
+                  {updatingBio ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.bioSaveText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Update Name Modal */}
+      <Modal
+        visible={isNameModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setIsNameModalVisible(false);
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => {
+                Keyboard.dismiss();
+                setIsNameModalVisible(false);
+              }}
+            />
+            <View style={[styles.bioModalContent, isDark && styles.bioModalContentDark]}>
+              <Text style={[styles.bioModalTitle, isDark && styles.textLight]}>Update Name</Text>
+              
+              <TextInput
+                style={[
+                  styles.bioInput,
+                  isDark && styles.bioInputDark,
+                  { color: isDark ? '#f8fafc' : '#0f172a', height: 48 }
+                ]}
+                placeholder="Enter display name..."
+                placeholderTextColor="#94a3b8"
+                value={displayNameText}
+                onChangeText={setDisplayNameText}
+                maxLength={50}
+              />
+              
+              <View style={styles.bioModalButtons}>
+                <TouchableOpacity 
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setIsNameModalVisible(false);
+                  }} 
+                  style={styles.bioCancelBtn}
+                >
+                  <Text style={styles.bioCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={handleUpdateName} 
+                  disabled={updatingName}
+                  style={styles.bioSaveBtn}
+                >
+                  {updatingName ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={styles.bioSaveText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

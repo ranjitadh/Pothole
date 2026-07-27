@@ -428,7 +428,16 @@ export async function searchPosts(queryText: string) {
   if (!cleanQuery) return [];
 
   const { data: { user } } = await supabase.auth.getUser();
-  
+
+  // 1. Search locations matching place_name, city, country
+  const { data: locs } = await supabase
+    .from('locations')
+    .select('id')
+    .or(`place_name.ilike.%${cleanQuery}%,city.ilike.%${cleanQuery}%,country.ilike.%${cleanQuery}%`);
+
+  const locIds = locs ? locs.map((l: any) => l.id) : [];
+
+  // 2. Query posts matching description/text OR location IDs
   let query = supabase
     .from('posts')
     .select(`
@@ -437,10 +446,15 @@ export async function searchPosts(queryText: string) {
       media:post_media(*),
       location:locations(*)
     `)
-    .eq('visibility', 'public')
-    .ilike('text', `%${cleanQuery}%`)
-    .order('created_at', { ascending: false })
-    .limit(30);
+    .eq('visibility', 'public');
+
+  if (locIds.length > 0) {
+    query = query.or(`text.ilike.%${cleanQuery}%,location_id.in.(${locIds.join(',')})`);
+  } else {
+    query = query.ilike('text', `%${cleanQuery}%`);
+  }
+
+  query = query.order('created_at', { ascending: false }).limit(30);
 
   const { data: posts, error } = await query;
   if (error) throw new Error(error.message);
@@ -461,10 +475,51 @@ export async function searchPosts(queryText: string) {
     savedPostIds = new Set((savesRes.data ?? []).map((s: any) => s.post_id));
   }
 
-  return trimmed.map((p: any) => ({
-    ...p,
-    isLiked: likedPostIds.has(p.id),
-    isSaved: savedPostIds.has(p.id),
+  return trimmed.map((post: any) => ({
+    id: post.id,
+    userId: post.user_id,
+    text: post.text,
+    visibility: post.visibility,
+    likesCount: post.likes_count,
+    commentsCount: post.comments_count,
+    sharesCount: post.shares_count,
+    isEdited: post.is_edited,
+    createdAt: post.created_at,
+    author: {
+      id: post.author.id,
+      username: post.author.username,
+      displayName: post.author.display_name,
+      bio: null,
+      avatarUrl: post.author.avatar_url,
+      coverUrl: null,
+      followersCount: post.author.followers_count,
+      followingCount: post.author.following_count,
+      postsCount: post.author.posts_count,
+      createdAt: post.author.created_at,
+    },
+    media: (post.media ?? []).map((m: any) => ({
+      id: m.id,
+      url: m.url,
+      type: m.type,
+      width: m.width,
+      height: m.height,
+      thumbnailUrl: m.thumbnail_url,
+    })),
+    location: post.location
+      ? {
+          id: post.location.id,
+          latitude: post.location.latitude,
+          longitude: post.location.longitude,
+          placeName: post.location.place_name,
+          country: post.location.country,
+          city: post.location.city,
+          googlePlaceId: post.location.google_place_id,
+        }
+      : null,
+    hashtags: [],
+    isLiked: likedPostIds.has(post.id),
+    isSaved: savedPostIds.has(post.id),
+    status: post.status || 'unresolved',
   })) as PostWithDetails[];
 }
 
@@ -620,5 +675,82 @@ export async function uploadPhoto(uri: string, bucket = 'posts') {
     .getPublicUrl(filePath);
 
   return publicUrlData.publicUrl;
+}
+
+export async function getPostById(postId: string): Promise<PostWithDetails> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  const { data: post, error } = await supabase
+    .from('posts')
+    .select(`
+      *,
+      author:profiles!posts_user_id_fkey(id, username, display_name, avatar_url, followers_count, following_count, posts_count, created_at),
+      media:post_media(*),
+      location:locations(*)
+    `)
+    .eq('id', postId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  if (!post) throw new Error('Post not found');
+
+  let isLiked = false;
+  let isSaved = false;
+
+  if (user) {
+    const [likeRes, saveRes] = await Promise.all([
+      supabase.from('likes').select('post_id').eq('user_id', user.id).eq('post_id', postId).maybeSingle(),
+      supabase.from('saved_posts').select('post_id').eq('user_id', user.id).eq('post_id', postId).maybeSingle(),
+    ]);
+    isLiked = !!likeRes.data;
+    isSaved = !!saveRes.data;
+  }
+
+  return {
+    id: post.id,
+    userId: post.user_id,
+    text: post.text,
+    visibility: post.visibility,
+    likesCount: post.likes_count,
+    commentsCount: post.comments_count,
+    sharesCount: post.shares_count,
+    isEdited: post.is_edited,
+    createdAt: post.created_at,
+    author: {
+      id: post.author.id,
+      username: post.author.username,
+      displayName: post.author.display_name,
+      bio: null,
+      avatarUrl: post.author.avatar_url,
+      coverUrl: null,
+      followersCount: post.author.followers_count,
+      followingCount: post.author.following_count,
+      postsCount: post.author.posts_count,
+      createdAt: post.author.created_at,
+    },
+    media: (post.media ?? []).map((m: any) => ({
+      id: m.id,
+      url: m.url,
+      type: m.type,
+      width: m.width,
+      height: m.height,
+      thumbnailUrl: m.thumbnail_url,
+    })),
+    location: post.location
+      ? {
+          id: post.location.id,
+          latitude: post.location.latitude,
+          longitude: post.location.longitude,
+          placeName: post.location.place_name,
+          country: post.location.country,
+          city: post.location.city,
+          googlePlaceId: post.location.google_place_id,
+        }
+      : null,
+    hashtags: [],
+    isLiked,
+    isSaved,
+    status: post.status || 'unresolved',
+  };
 }
 

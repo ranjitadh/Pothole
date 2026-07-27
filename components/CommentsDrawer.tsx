@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, FlatList, Image, ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Keyboard } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getComments, createComment, deleteComment } from '../services/post';
 import { useAuthStore } from '../store/auth-store';
@@ -20,6 +21,7 @@ export function CommentsDrawer({ visible, onClose, postId }: CommentsDrawerProps
   const queryClient = useQueryClient();
   const { profile } = useAuthStore();
   const { isCommentUpvoted, isCommentDownvoted, toggleCommentUpvote, toggleCommentDownvote } = useVoteStore();
+  const insets = useSafeAreaInsets();
 
   const [text, setText] = useState('');
   const [replyTarget, setReplyTarget] = useState<{ id: string; username: string } | null>(null);
@@ -206,7 +208,11 @@ export function CommentsDrawer({ visible, onClose, postId }: CommentsDrawerProps
               </View>
             )}
 
-            <View style={[styles.inputContainer, isDark && styles.inputContainerDark]}>
+            <View style={[
+              styles.inputContainer,
+              isDark && styles.inputContainerDark,
+              { paddingBottom: Math.max(insets.bottom, 12) }
+            ]}>
               <TextInput
                 ref={inputRef}
                 style={[

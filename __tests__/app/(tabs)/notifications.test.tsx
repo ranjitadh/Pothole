@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent, act } from '@testing-library/react-native';
 import NotificationsScreen from '../../../app/(tabs)/notifications';
 
 jest.mock('../../../services/supabase', () => ({
@@ -15,6 +15,12 @@ jest.mock('../../../services/supabase', () => ({
 }));
 jest.mock('lucide-react-native', () => ({
   Bell: 'Bell',
+}));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
 }));
 jest.mock('@tanstack/react-query', () => {
   const actual = jest.requireActual('@tanstack/react-query');
@@ -108,5 +114,53 @@ describe('Notifications Screen', () => {
 
     const { getByText } = render(<NotificationsScreen />);
     expect(getByText('@newuser')).toBeTruthy();
+  });
+
+  it('redirects to the post detail screen when pressing a comment or like notification', async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        {
+          id: 'notif-1',
+          type: 'comment',
+          post_id: 'post-100',
+          actor: { username: 'commenter' },
+          created_at: '2024-06-01T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    const { getByTestId } = render(<NotificationsScreen />);
+    const row = getByTestId('notification-item-notif-1');
+    
+    fireEvent.press(row);
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/post/[id]',
+      params: { id: 'post-100' },
+    });
+  });
+
+  it('redirects to the profile screen when pressing a follow notification', async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        {
+          id: 'notif-2',
+          type: 'follow',
+          actor: { username: 'follower' },
+          created_at: '2024-06-01T00:00:00Z',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    const { getByTestId } = render(<NotificationsScreen />);
+    const row = getByTestId('notification-item-notif-2');
+    
+    fireEvent.press(row);
+
+    expect(mockPush).toHaveBeenCalledWith('/profile/follower');
   });
 });

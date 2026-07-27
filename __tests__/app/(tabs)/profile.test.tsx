@@ -30,6 +30,7 @@ jest.mock('lucide-react-native', () => ({
   Image: 'Image',
   AlignLeft: 'AlignLeft',
   MoreHorizontal: 'MoreHorizontal',
+  Pencil: 'Pencil',
 }));
 
 jest.mock('expo-image-picker', () => ({
@@ -235,6 +236,24 @@ describe('Profile Screen', () => {
     expect(getByPlaceholderText('Tell us about yourself...')).toBeTruthy();
     
     fireEvent.changeText(getByPlaceholderText('Tell us about yourself...'), 'New Bio Text');
+    
+    await act(async () => {
+      fireEvent.press(getByText('Save'));
+    });
+
+    expect(mockUseAuthStore).toHaveBeenCalled();
+  });
+
+  it('opens name editor modal and saves display name updates', async () => {
+    const { getByTestId, getByPlaceholderText, getByText } = render(<ProfileScreen />);
+    
+    await act(async () => {
+      fireEvent.press(getByTestId('edit-name-button'));
+    });
+
+    expect(getByPlaceholderText('Enter display name...')).toBeTruthy();
+    
+    fireEvent.changeText(getByPlaceholderText('Enter display name...'), 'New Name Text');
     
     await act(async () => {
       fireEvent.press(getByText('Save'));

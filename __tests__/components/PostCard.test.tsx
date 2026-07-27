@@ -3,6 +3,12 @@ import { Alert, Share } from 'react-native';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import { PostCard } from '../../components/PostCard';
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 10, bottom: 10, left: 0, right: 0 }),
+  SafeAreaProvider: ({ children }: any) => children,
+  SafeAreaView: ({ children }: any) => children,
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
