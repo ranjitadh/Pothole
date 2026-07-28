@@ -133,6 +133,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
       'expo-web-browser',
+      [
+        'expo-build-properties',
+        {
+          android: {
+            ndkVersion: '26.1.10909125',
+          },
+        },
+      ],
     ],
 
     experiments: {
