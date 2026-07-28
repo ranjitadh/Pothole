@@ -2,8 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert, Dimensions, BackHandler } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X, Search, Locate, Maximize2, MapPin } from 'lucide-react-native';
+import { X, Search, Locate, Maximize2, MapPin, AlertTriangle } from 'lucide-react-native';
 import * as Location from 'expo-location';
+import {
+  isValidCoordinate as isValidCoord,
+  checkAndRequestLocationPermission,
+  getCurrentLocation,
+  reverseGeocodeCoords,
+  LocationErrorCode,
+} from '../services/location';
 
 class MapErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -33,20 +40,8 @@ interface PinpointLocationModalProps {
 const DEFAULT_COORDS = { latitude: 27.6710, longitude: 85.3240 };
 const DEFAULT_REGION = { ...DEFAULT_COORDS, latitudeDelta: 0.008, longitudeDelta: 0.008 };
 
-const isValidCoordinate = (lat: any, lng: any) => {
-  return (
-    typeof lat === 'number' &&
-    typeof lng === 'number' &&
-    !isNaN(lat) &&
-    !isNaN(lng) &&
-    isFinite(lat) &&
-    isFinite(lng) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lng >= -180 &&
-    lng <= 180
-  );
-};
+// Keep a local alias for coordinate validation (wraps the service helper).
+const isValidCoordinate = (lat: any, lng: any) => isValidCoord(lat, lng);
 
 export function PinpointLocationModal({ visible, onClose, onConfirm, initialLocation }: PinpointLocationModalProps) {
   const mapRef = useRef<MapView | null>(null);
@@ -64,6 +59,13 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [markerCoords, setMarkerCoords] = useState(DEFAULT_COORDS);
   const [placeName, setPlaceName] = useState('');
+  /**
+   * locationError — shown as an inline banner beneath the search bar.
+   * Null = no error. Set at each failure stage so the user (and devs
+   * reading logs) know exactly where in the pipeline the failure occurred:
+   * permission → GPS → geocoding → map rendering.
+   */
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -137,100 +139,73 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
 
   const handleGetCurrentLocation = useCallback(async () => {
     safeSet(setIsLocating, true);
+    safeSet(setLocationError, null); // Clear previous error
     try {
-      const servicesEnabled = await Location.hasServicesEnabledAsync();
-      if (!servicesEnabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'GPS is disabled. Please enable Location Services in your system settings to fetch your current coordinates.',
-          [{ text: 'OK' }]
+      // Stage 1: Permission — delegates to location service
+      const perm = await checkAndRequestLocationPermission();
+      if (perm.status !== 'granted') {
+        const msg = perm.reason;
+        safeSet(setLocationError, `📍 ${msg}`);
+        // Also show an Alert for blocked state (needs Settings action)
+        if (perm.status === 'blocked') {
+          Alert.alert('Location Permission Blocked', msg, [
+            { text: 'Open Settings', onPress: () => { const { Linking } = require('react-native'); Linking.openSettings(); } },
+            { text: 'Cancel', style: 'cancel' },
+          ]);
+        }
+        return;
+      }
+
+      // Stage 2: GPS acquisition — accuracy cascade + timeouts in service
+      const gps = await getCurrentLocation();
+      if (!gps.ok) {
+        safeSet(setLocationError, `📡 GPS: ${gps.message}`);
+        return;
+      }
+
+      const { latitude, longitude } = gps.coords;
+      const newRegion = { latitude, longitude, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+      safeSet(setMarkerCoords, { latitude, longitude });
+      if (mapReady && mapRef.current) {
+        mapRef.current.animateToRegion(newRegion, 500);
+      }
+
+      // Stage 3: Reverse geocoding — never fatal, always falls back to coords
+      safeSet(setIsGeocoding, true);
+      const { address, resolved } = await reverseGeocodeCoords(latitude, longitude);
+      safeSet(setPlaceName, address);
+      safeSet(setSearchText, address);
+      if (!resolved) {
+        // Show a subtle warning — not an error, the location was still captured
+        safeSet(
+          setLocationError,
+          '🗺️ Address lookup unavailable — coordinates saved. ' +
+            'Check that Geocoding API is enabled in Google Cloud Console.',
         );
-        return;
-      }
-
-      let status = 'granted';
-      try {
-        const perm = await Location.requestForegroundPermissionsAsync();
-        status = perm.status;
-      } catch {
-        status = 'denied';
-      }
-
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to pinpoint your location. Please enable it in Settings.');
-        return;
-      }
-
-      let current: Location.LocationObject | null = null;
-      try {
-        current = await Location.getLastKnownPositionAsync();
-      } catch {
-        current = null;
-      }
-
-      if (!current) {
-        try {
-          current = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-        } catch {
-          current = null;
-        }
-      }
-
-      if (current?.coords) {
-        const lat = Number(current.coords.latitude);
-        const lng = Number(current.coords.longitude);
-        if (!isValidCoordinate(lat, lng)) {
-          Alert.alert('Location Error', 'Received invalid coordinates. Please try again.');
-          return;
-        }
-        const coords = { latitude: lat, longitude: lng };
-        const newRegion = { ...coords, latitudeDelta: 0.008, longitudeDelta: 0.008 };
-        safeSet(setMarkerCoords, coords);
-        if (mapReady && mapRef.current) {
-          mapRef.current.animateToRegion(newRegion, 500);
-        }
-        await reverseGeocode(lat, lng);
-      } else {
-        Alert.alert('Location Error', 'Could not retrieve coordinates. Please try searching for an address or check your GPS settings.');
       }
     } catch (err: any) {
-      console.warn('[PinpointLocation] getCurrentLocation error:', err?.message || err);
-      Alert.alert('Location Error', 'Error fetching position: ' + (err?.message || 'Unknown error'));
+      console.warn('[PinpointLocation] Unexpected error in handleGetCurrentLocation:', err?.message ?? err);
+      safeSet(setLocationError, `⚠️ Unexpected error: ${err?.message ?? 'Unknown'}`);
     } finally {
       safeSet(setIsLocating, false);
+      safeSet(setIsGeocoding, false);
     }
   }, [safeSet, mapReady]);
 
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     safeSet(setIsGeocoding, true);
-    try {
-      const geocode = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-      if (geocode && geocode.length > 0) {
-        const address = geocode[0];
-        const name = [
-          address.streetNumber,
-          address.street,
-          address.city || address.subregion || address.district,
-        ].filter(Boolean).join(' ').trim();
-
-        const formattedAddress = name || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        safeSet(setPlaceName, formattedAddress);
-        safeSet(setSearchText, formattedAddress);
-      } else {
-        const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        safeSet(setPlaceName, fallback);
-        safeSet(setSearchText, fallback);
-      }
-    } catch {
-      const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-      safeSet(setPlaceName, fallback);
-      safeSet(setSearchText, fallback);
-    } finally {
-      safeSet(setIsGeocoding, false);
+    const { address, resolved } = await reverseGeocodeCoords(lat, lng);
+    safeSet(setPlaceName, address);
+    safeSet(setSearchText, address);
+    if (!resolved) {
+      safeSet(
+        setLocationError,
+        '🗺️ Address lookup unavailable — coordinates saved.',
+      );
     }
+    safeSet(setIsGeocoding, false);
   }, [safeSet]);
+
 
   const handleSearch = useCallback(async () => {
     const query = searchText.trim();
@@ -355,6 +330,23 @@ export function PinpointLocationModal({ visible, onClose, onConfirm, initialLoca
             )}
           </View>
         </View>
+
+        {/* Diagnostic error banner — shown when any location stage fails.
+            Gives the user (and developers reading logcat) the exact failure point:
+            permission | GPS | geocoding | map rendering.
+            Non-blocking: the user can still tap the map or search manually. */}
+        {locationError != null && (
+          <View style={styles.errorBanner}>
+            <AlertTriangle size={14} color="#92400e" style={{ flexShrink: 0 }} />
+            <Text style={styles.errorBannerText} numberOfLines={3}>{locationError}</Text>
+            <TouchableOpacity
+              onPress={() => safeSet(setLocationError, null)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={14} color="#92400e" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Map view */}
         <View style={styles.mapContainer}>
@@ -649,5 +641,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#ffffff',
+  },
+  // Diagnostic error banner — amber warning strip shown when a location
+  // stage fails. Clearly shows the failure point without blocking the UI.
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fffbeb',
+    borderTopWidth: 1,
+    borderTopColor: '#fde68a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    color: '#92400e',
+    fontWeight: '500',
   },
 });
