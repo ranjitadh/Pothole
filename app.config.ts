@@ -23,7 +23,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: 'Pothole',
     slug: 'PotholeReactNative',
-    version: '5.3.0',
+    version: '5.4.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     scheme: 'pothole',

@@ -4,36 +4,41 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../services/supabase';
 
-export default function ForgotPasswordScreen() {
+export default function ResetPasswordScreen() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleResetRequest = async () => {
-    const cleanedEmail = email.trim().toLowerCase();
-    if (!cleanedEmail) {
-      Alert.alert('Error', 'Please enter your email address');
+  const handleUpdatePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert('Error', 'Please enter and confirm your new password');
       return;
     }
-    if (!/\S+@\S+\.\S+/.test(cleanedEmail)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+
+    if (newPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
       return;
     }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(cleanedEmail, {
-        redirectTo: 'pothole://reset-password',
-      });
-
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
 
       Alert.alert(
-        'Email Sent',
-        'Password reset link has been sent to your email. Check your inbox.',
+        'Success',
+        'Your password has been reset successfully.',
         [{ text: 'OK', onPress: () => router.replace('/login') }]
       );
     } catch (err: any) {
-      Alert.alert('Reset Failed', err.message || 'Something went wrong.');
+      Alert.alert('Reset Failed', err.message || 'Could not update password. Please request a new link.');
     } finally {
       setIsLoading(false);
     }
@@ -43,24 +48,48 @@ export default function ForgotPasswordScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>Enter your email to receive a password reset link</Text>
+          <Text style={styles.title}>Set New Password</Text>
+          <Text style={styles.subtitle}>Enter your new password below</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>New Password</Text>
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, { paddingRight: 48 }]}
+                placeholder="••••••••"
+                placeholderTextColor="#9ca3af"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="newPassword"
+                autoComplete="password-new"
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <TouchableOpacity 
+                style={styles.showButton} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Text style={styles.showText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm New Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="you@example.com"
+              placeholder="••••••••"
               placeholderTextColor="#9ca3af"
+              secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
-              autoComplete="email"
-              value={email}
-              onChangeText={setEmail}
+              textContentType="newPassword"
+              autoComplete="password-new"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
             />
           </View>
         </View>
@@ -68,12 +97,12 @@ export default function ForgotPasswordScreen() {
         <TouchableOpacity 
           style={[styles.button, isLoading && styles.buttonDisabled]}
           disabled={isLoading}
-          onPress={handleResetRequest}
+          onPress={handleUpdatePassword}
         >
           {isLoading ? (
             <ActivityIndicator color="white" />
           ) : (
-            <Text style={styles.buttonText}>Send Reset Link</Text>
+            <Text style={styles.buttonText}>Update Password</Text>
           )}
         </TouchableOpacity>
 
@@ -112,6 +141,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   form: {
+    gap: 16,
     marginBottom: 24,
   },
   inputGroup: {
@@ -132,6 +162,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1f2937',
     backgroundColor: '#f9fafb',
+  },
+  passwordContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  showButton: {
+    position: 'absolute',
+    right: 12,
+    padding: 4,
+  },
+  showText: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontWeight: '600',
   },
   button: {
     height: 48,

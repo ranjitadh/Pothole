@@ -31,6 +31,47 @@ function mapProfile(raw: any): UserProfile {
   };
 }
 
+export async function fetchOrEnsureProfile(user: User): Promise<UserProfile | null> {
+  try {
+    const { data: rawProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (rawProfile) {
+      return mapProfile(rawProfile);
+    }
+
+    // Fallback profile creation if database trigger was not executed
+    const rawUsername = user.user_metadata?.username || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`;
+    const cleanUsername = rawUsername.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 20);
+    const displayName = user.user_metadata?.display_name || user.user_metadata?.full_name || cleanUsername;
+    const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+
+    const { data: createdProfile } = await supabase
+      .from('profiles')
+      .upsert(
+        {
+          id: user.id,
+          username: cleanUsername,
+          display_name: displayName,
+          avatar_url: avatarUrl,
+        },
+        { onConflict: 'id' }
+      )
+      .select('*')
+      .maybeSingle();
+
+    if (createdProfile) {
+      return mapProfile(createdProfile);
+    }
+  } catch (err) {
+    console.error('Error fetching or ensuring profile:', err);
+  }
+  return null;
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   profile: null,
@@ -46,16 +87,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (session?.user) {
         set({ user: session.user, isAuthenticated: true });
-
-        const { data: rawProfile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle();
-
-        if (rawProfile) {
-          set({ profile: mapProfile(rawProfile) });
-        }
+        const profile = await fetchOrEnsureProfile(session.user);
+        set({ profile });
       }
 
       supabase.auth.onAuthStateChange(async (event, newSession) => {
@@ -63,19 +96,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: null, profile: null, isAuthenticated: false });
           return;
         }
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
           if (newSession?.user) {
             set({ user: newSession.user, isAuthenticated: true });
-            if (event === 'SIGNED_IN') {
-              const { data: rawProfile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', newSession.user.id)
-                .maybeSingle();
-              if (rawProfile) {
-                set({ profile: mapProfile(rawProfile) });
-              }
-            }
+            const profile = await fetchOrEnsureProfile(newSession.user);
+            set({ profile });
           }
         }
       });
@@ -95,14 +120,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { user } = get();
     if (!user) return;
 
-    const { data: rawProfile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    if (rawProfile) {
-      set({ profile: mapProfile(rawProfile) });
-    }
+    const profile = await fetchOrEnsureProfile(user);
+    set({ profile });
   },
 }));

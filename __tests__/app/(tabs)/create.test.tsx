@@ -45,6 +45,7 @@ jest.mock('expo-location', () => ({
   reverseGeocodeAsync: jest.fn().mockResolvedValue([
     { streetNumber: '123', street: 'Main St', city: 'Kathmandu', subregion: 'Bagmati' },
   ]),
+  Accuracy: { High: 4, Balanced: 3, Low: 2 },
 }));
 jest.mock('base-64', () => ({ decode: jest.fn(() => '') }));
 jest.mock('react-native-maps', () => {

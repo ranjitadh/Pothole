@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, SafeAreaView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../services/supabase';
 import { Globe } from 'lucide-react-native';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
+import { TEST_USER } from '../../constants/TestCredentials';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -16,13 +18,18 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const cleanedEmail = email.trim().toLowerCase();
+    if (!cleanedEmail || !password) {
       Alert.alert('Error', 'Please enter your email and password');
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(cleanedEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: cleanedEmail, password });
       if (error) throw error;
     } catch (err: any) {
       Alert.alert('Sign In Failed', err.message || 'Something went wrong.');
@@ -96,7 +103,10 @@ export default function LoginScreen() {
               placeholder="you@example.com"
               placeholderTextColor="#9ca3af"
               autoCapitalize="none"
+              autoCorrect={false}
               keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
               value={email}
               onChangeText={setEmail}
             />
@@ -116,6 +126,9 @@ export default function LoginScreen() {
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="password"
+                autoComplete="password"
                 value={password}
                 onChangeText={setPassword}
               />
@@ -130,7 +143,7 @@ export default function LoginScreen() {
         </View>
 
         <TouchableOpacity 
-          style={styles.signInButton}
+          style={[styles.signInButton, isLoading && styles.buttonDisabled]}
           disabled={isLoading}
           onPress={handleLogin}
         >
@@ -162,6 +175,18 @@ export default function LoginScreen() {
             <Text style={styles.signUpLink}>Sign up</Text>
           </TouchableOpacity>
         </View>
+
+        {__DEV__ && (
+          <TouchableOpacity 
+            style={styles.devFillButton}
+            onPress={() => {
+              setEmail(TEST_USER.email);
+              setPassword(TEST_USER.password);
+            }}
+          >
+            <Text style={styles.devFillText}>⚡ Quick Fill Test Credentials</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -252,6 +277,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -298,5 +326,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#ea580c',
     fontWeight: '700',
+  },
+  devFillButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff7ed',
+    borderWidth: 1,
+    borderColor: '#ffedd5',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  devFillText: {
+    color: '#c2410c',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

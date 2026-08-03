@@ -73,9 +73,9 @@ const LAST_KNOWN_MAX_AGE_MS = 60_000; // 1 minute
 
 /** Accuracy levels tried in order. Stops at first success. */
 const ACCURACY_CASCADE: Location.Accuracy[] = [
-  Location.Accuracy.High,
-  Location.Accuracy.Balanced,
-  Location.Accuracy.Low,
+  Location.Accuracy?.High ?? 4,
+  Location.Accuracy?.Balanced ?? 3,
+  Location.Accuracy?.Low ?? 2,
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

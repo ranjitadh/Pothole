@@ -293,6 +293,9 @@ export default function ProfileScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#ea580c" />
+        <TouchableOpacity style={{ marginTop: 16, padding: 8 }} onPress={() => refreshProfile()}>
+          <Text style={{ color: '#ea580c', fontWeight: '600', fontSize: 14 }}>Retry Loading Profile</Text>
+        </TouchableOpacity>
       </View>
     );
   }

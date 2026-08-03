@@ -191,11 +191,36 @@ describe('Auth Store', () => {
     expect(state.profile?.avatarUrl).toBe('https://example.com/avatar.jpg');
   });
 
-  it('refreshProfile does nothing when no user', async () => {
-    useAuthStore.getState().setUser(null);
+  it('refreshProfile creates fallback profile when profile row is missing', async () => {
+    const mockUser = { id: 'user-1', email: 'john.doe@example.com', user_metadata: { display_name: 'John Doe' } };
+    const mockCreatedProfile = {
+      id: 'user-1',
+      username: 'john_doe',
+      display_name: 'John Doe',
+      avatar_url: null,
+      created_at: '2026-08-01',
+    };
+
+    useAuthStore.getState().setUser(mockUser as any);
+
+    mockSupabase.from.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+      upsert: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          maybeSingle: jest.fn().mockResolvedValue({ data: mockCreatedProfile, error: null }),
+        }),
+      }),
+    });
 
     await useAuthStore.getState().refreshProfile();
 
-    expect(useAuthStore.getState().profile).toBeNull();
+    const state = useAuthStore.getState();
+    expect(state.profile).not.toBeNull();
+    expect(state.profile?.username).toBe('john_doe');
+    expect(state.profile?.displayName).toBe('John Doe');
   });
 });

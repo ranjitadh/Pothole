@@ -20,6 +20,7 @@ jest.mock('lucide-react-native', () => {
     Locate: (props: any) => React.createElement(Text, props, 'Locate'),
     Maximize2: (props: any) => React.createElement(Text, props, 'Maximize2'),
     MapPin: (props: any) => React.createElement(Text, props, 'MapPin'),
+    AlertTriangle: (props: any) => React.createElement(Text, props, 'AlertTriangle'),
   };
 });
 
@@ -39,7 +40,9 @@ jest.mock('expo-location', () => ({
   geocodeAsync: (...args: any[]) => mockGeocode(...args),
   hasServicesEnabledAsync: (...args: any[]) => mockHasServicesEnabled(...args),
   Accuracy: {
+    High: 4,
     Balanced: 3,
+    Low: 2,
   },
 }));
 
@@ -195,8 +198,8 @@ describe('PinpointLocationModal Component', () => {
     expect(getByPlaceholderText('Search for an address or place...').props.value).toBe('123 Main St Kathmandu');
   });
 
-  it('alerts the user when location permission is denied', async () => {
-    mockRequestForegroundPermissions.mockResolvedValue({ status: 'denied' });
+  it('alerts the user when location permission is blocked', async () => {
+    mockRequestForegroundPermissions.mockResolvedValue({ status: 'denied', canAskAgain: false });
     const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 
     render(
@@ -213,8 +216,9 @@ describe('PinpointLocationModal Component', () => {
 
     expect(mockRequestForegroundPermissions).toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalledWith(
-      'Permission Denied',
-      'Location permission is required to pinpoint your location. Please enable it in Settings.'
+      'Location Permission Blocked',
+      expect.stringContaining('permanently denied'),
+      expect.any(Array)
     );
     alertSpy.mockRestore();
   });
