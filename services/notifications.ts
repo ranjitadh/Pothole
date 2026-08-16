@@ -13,23 +13,33 @@
  * This module does NOT own UI state. The notification-store owns that.
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform, Linking } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 
-// ── Notification handler (foreground display) ─────────────────────────────────
+const isExpoGo =
+  Constants.appOwnership === 'expo' ||
+  (Constants as any).executionEnvironment === 'storeClient';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+let Notifications: typeof import('expo-notifications') | null = null;
+
+if (Platform.OS !== 'web' && !isExpoGo) {
+  try {
+    Notifications = require('expo-notifications');
+    Notifications?.setNotificationHandler?.({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    Notifications = null;
+  }
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +52,7 @@ export type SystemPermission = 'granted' | 'denied' | 'undetermined';
 
 /** Returns the current OS-level notification permission without prompting. */
 export async function getNotificationPermissionStatus(): Promise<SystemPermission> {
-  if (Platform.OS === 'web') return 'undetermined';
+  if (Platform.OS === 'web' || !Notifications) return 'undetermined';
   try {
     const { status } = await Notifications.getPermissionsAsync();
     return status as SystemPermission;
@@ -56,7 +66,7 @@ export async function getNotificationPermissionStatus(): Promise<SystemPermissio
  * Safe to call when status is already 'granted' or 'denied'.
  */
 export async function requestNotificationPermission(): Promise<SystemPermission> {
-  if (Platform.OS === 'web') return 'undetermined';
+  if (Platform.OS === 'web' || !Notifications) return 'undetermined';
   try {
     const current = await getNotificationPermissionStatus();
     if (current === 'granted' || current === 'denied') return current;
@@ -80,7 +90,7 @@ export function openNotificationSettings(): void {
 
 /** Idempotent: creates the default Android notification channel if it doesn't exist. */
 export async function createAndroidNotificationChannel(): Promise<void> {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !Notifications) return;
   try {
     await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
       name: 'Pothole Alerts',
@@ -113,12 +123,7 @@ function getProjectId(): string | undefined {
  * permissions are not granted, or token acquisition fails.
  */
 export async function getExpoPushToken(): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
-  // Expo SDK 53+ removed remote push notifications from Expo Go sandbox.
-  if (Constants.appOwnership === 'expo' || (Constants as any).executionEnvironment === 'storeClient') {
-    console.warn('[Notifications] Push tokens require a standalone or development build (not available in Expo Go sandbox).');
-    return null;
-  }
+  if (Platform.OS === 'web' || !Notifications) return null;
   try {
     const projectId = getProjectId();
     const tokenData = await Notifications.getExpoPushTokenAsync(
@@ -142,7 +147,7 @@ export async function getExpoPushToken(): Promise<string | null> {
  * @returns The token string on success, null on failure.
  */
 export async function registerAndUpsertToken(userId: string): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web' || !Notifications) return null;
 
   await createAndroidNotificationChannel();
 
@@ -235,7 +240,7 @@ export async function setPersistedPreference(value: 'enabled' | 'disabled'): Pro
  * Retained so the existing notifications.test.ts suite passes without changes.
  */
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web' || !Notifications) return null;
   try {
     const permission = await requestNotificationPermission();
     if (permission !== 'granted') return null;
@@ -253,6 +258,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
  * call the Expo Push API from a backend Edge Function.
  */
 export async function sendTestPushNotification(): Promise<boolean> {
+  if (!Notifications) return false;
   try {
     await Notifications.scheduleNotificationAsync({
       content: {

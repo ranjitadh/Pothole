@@ -10,7 +10,10 @@ import { useAuthStore } from '../store/auth-store';
 import { useNotificationStore } from '../store/notification-store';
 import { ActivityIndicator, View, LogBox } from 'react-native';
 
-LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated',
+  'Tried to register two views with the same name',
+]);
 
 const queryClient = new QueryClient();
 
