@@ -8,6 +8,8 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { TEST_USER } from '../../constants/TestCredentials';
 
+import * as Linking from 'expo-linking';
+
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
@@ -41,12 +43,7 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
-      // If running inside the Expo Go sandbox, we must route back via the Metro dev server's exp:// scheme.
-      // If running in a native production/development build, we use the custom pothole:// scheme.
-      const isExpoGo = Constants.appOwnership === 'expo';
-      const redirectUrl = (isExpoGo && Constants.expoConfig?.hostUri)
-        ? `exp://${Constants.expoConfig.hostUri}/--/callback`
-        : 'pothole://callback';
+      const redirectUrl = Linking.createURL('callback');
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -66,17 +63,24 @@ export default function LoginScreen() {
             const results = regex.exec(urlStr);
             return results ? decodeURIComponent(results[1]) : '';
           };
+          const code = getParam(url, 'code');
           const accessToken = getParam(url, 'access_token');
           const refreshToken = getParam(url, 'refresh_token');
 
-          if (accessToken && refreshToken) {
+          if (code) {
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) throw exchangeError;
+          } else if (accessToken && refreshToken) {
             const { error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
             if (sessionError) throw sessionError;
           } else {
-            throw new Error('Authentication tokens missing in callback URL');
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session) {
+              throw new Error('Authentication tokens missing in callback URL');
+            }
           }
         }
       }

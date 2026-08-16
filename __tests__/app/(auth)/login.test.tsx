@@ -9,6 +9,8 @@ jest.mock('../../../services/supabase', () => ({
       signInWithPassword: jest.fn().mockResolvedValue({ data: { user: { id: '1' } }, error: null }),
       signInWithOAuth: jest.fn().mockResolvedValue({ data: { url: null }, error: null }),
       setSession: jest.fn().mockResolvedValue({ data: {}, error: null }),
+      exchangeCodeForSession: jest.fn().mockResolvedValue({ data: {}, error: null }),
+      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
     },
   },
 }));
