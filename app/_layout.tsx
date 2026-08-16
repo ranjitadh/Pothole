@@ -7,12 +7,13 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth-store';
-import { useNotificationStore } from '../store/notification-store';
+import Constants from 'expo-constants';
 import { ActivityIndicator, View, LogBox } from 'react-native';
 
 LogBox.ignoreLogs([
   'SafeAreaView has been deprecated',
   'Tried to register two views with the same name',
+  "'Splashscreen.setOptions' cannot be used in Expo Go",
 ]);
 
 const queryClient = new QueryClient();
@@ -26,7 +27,14 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
-SplashScreen.setOptions({ duration: 600, fade: true });
+
+if (Constants.appOwnership !== 'expo' && (Constants as any).executionEnvironment !== 'storeClient') {
+  try {
+    SplashScreen.setOptions({ duration: 600, fade: true });
+  } catch {
+    // Ignore in Expo Go
+  }
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
