@@ -7,6 +7,7 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth-store';
+import { useNotificationStore } from '../store/notification-store';
 import Constants from 'expo-constants';
 import { ActivityIndicator, View, LogBox } from 'react-native';
 

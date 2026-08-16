@@ -43,7 +43,11 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
-      const redirectUrl = Linking.createURL('callback');
+      const isExpoGo = Constants.appOwnership === 'expo';
+      const redirectUrl = isExpoGo
+        ? Linking.createURL('callback')
+        : 'pothole://callback';
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -55,7 +59,10 @@ export default function LoginScreen() {
       if (error) throw error;
 
       if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl, {
+          showInRecents: true,
+        });
+
         if (result.type === 'success' && result.url) {
           const url = result.url;
           const getParam = (urlStr: string, name: string) => {
@@ -81,6 +88,13 @@ export default function LoginScreen() {
             if (!sessionData?.session) {
               throw new Error('Authentication tokens missing in callback URL');
             }
+          }
+        } else {
+          // If browser was closed/dismissed after tapping Google account, check session
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session) {
+            // Session established successfully
+            return;
           }
         }
       }
