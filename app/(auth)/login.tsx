@@ -175,18 +175,6 @@ export default function LoginScreen() {
             <Text style={styles.signUpLink}>Sign up</Text>
           </TouchableOpacity>
         </View>
-
-        {__DEV__ && (
-          <TouchableOpacity 
-            style={styles.devFillButton}
-            onPress={() => {
-              setEmail(TEST_USER.email);
-              setPassword(TEST_USER.password);
-            }}
-          >
-            <Text style={styles.devFillText}>⚡ Quick Fill Test Credentials</Text>
-          </TouchableOpacity>
-        )}
       </View>
     </SafeAreaView>
   );

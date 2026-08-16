@@ -200,14 +200,4 @@ describe('Login Screen', () => {
     );
     alertSpy.mockRestore();
   });
-
-  it('triggers quick fill test credentials in dev mode', () => {
-    const { getByText, getByPlaceholderText } = render(<LoginScreen />);
-
-    const quickFillBtn = getByText('⚡ Quick Fill Test Credentials');
-    fireEvent.press(quickFillBtn);
-
-    const emailInput = getByPlaceholderText('you@example.com');
-    expect(emailInput.props.value).toBeTruthy();
-  });
 });
