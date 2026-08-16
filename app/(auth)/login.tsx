@@ -59,9 +59,36 @@ export default function LoginScreen() {
       if (error) throw error;
 
       if (data?.url) {
+        // Deep link listener to capture redirect and dismiss browser immediately
+        const subscription = Linking.addEventListener('url', async (event) => {
+          if (event.url) {
+            const url = event.url;
+            WebBrowser.dismissBrowser();
+            const getParam = (urlStr: string, name: string) => {
+              const regex = new RegExp('[#?&]' + name + '=([^&#]*)');
+              const results = regex.exec(urlStr);
+              return results ? decodeURIComponent(results[1]) : '';
+            };
+            const code = getParam(url, 'code');
+            const accessToken = getParam(url, 'access_token');
+            const refreshToken = getParam(url, 'refresh_token');
+
+            if (code) {
+              await supabase.auth.exchangeCodeForSession(code);
+            } else if (accessToken && refreshToken) {
+              await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+            }
+          }
+        });
+
         const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl, {
           showInRecents: true,
         });
+
+        subscription.remove();
 
         if (result.type === 'success' && result.url) {
           const url = result.url;
@@ -93,7 +120,6 @@ export default function LoginScreen() {
           // If browser was closed/dismissed after tapping Google account, check session
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session) {
-            // Session established successfully
             return;
           }
         }

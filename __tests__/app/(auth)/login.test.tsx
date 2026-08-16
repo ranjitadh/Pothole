@@ -23,9 +23,11 @@ jest.mock('expo-router', () => ({
 jest.mock('expo-web-browser', () => ({
   openAuthSessionAsync: jest.fn().mockResolvedValue({ type: 'cancel', url: '' }),
   maybeCompleteAuthSession: jest.fn(),
+  dismissBrowser: jest.fn(),
 }));
 jest.mock('expo-linking', () => ({
   createURL: jest.fn().mockReturnValue('pothole://'),
+  addEventListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
 }));
 jest.mock('expo-constants', () => ({
   default: { appOwnership: 'standalone', expoConfig: { hostUri: 'localhost:8081' } },
