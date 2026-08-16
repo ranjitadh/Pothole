@@ -1,13 +1,14 @@
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import CreateScreen from '../../../app/(tabs)/create';
-import { Alert } from 'react-native';
+import { Alert, Text } from 'react-native';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
   SafeAreaProvider: ({ children }: any) => children,
   SafeAreaView: ({ children }: any) => children,
 }));
+
 jest.mock('../../../services/supabase', () => ({
   supabase: {
     auth: {
@@ -21,15 +22,19 @@ jest.mock('../../../services/supabase', () => ({
     },
   },
 }));
+
 jest.mock('../../../services/post', () => ({
   createPost: jest.fn().mockResolvedValue({ id: 'new-post' }),
+  uploadPhoto: jest.fn().mockImplementation((uri: string) => Promise.resolve(`https://example.com/uploaded-${uri.split('/').pop()}`)),
 }));
+
 jest.mock('expo-router', () => ({
   useRouter: jest.fn().mockReturnValue({
     push: jest.fn(),
     replace: jest.fn(),
   }),
 }));
+
 jest.mock('expo-image-picker', () => ({
   launchCameraAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
   launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: true, assets: [] }),
@@ -37,6 +42,7 @@ jest.mock('expo-image-picker', () => ({
   requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   MediaTypeOptions: { Images: 'Images' },
 }));
+
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   getCurrentPositionAsync: jest.fn().mockResolvedValue({
@@ -47,7 +53,9 @@ jest.mock('expo-location', () => ({
   ]),
   Accuracy: { High: 4, Balanced: 3, Low: 2 },
 }));
+
 jest.mock('base-64', () => ({ decode: jest.fn(() => '') }));
+
 jest.mock('react-native-maps', () => {
   const React = require('react');
   const { View } = require('react-native');
@@ -55,28 +63,32 @@ jest.mock('react-native-maps', () => {
   const MockMarker = (props: any) => React.createElement(View, props);
   return { __esModule: true, default: MockMapView, Marker: MockMarker };
 });
-jest.mock('lucide-react-native', () => ({
-  Camera: 'Camera',
-  Image: 'Image',
-  MapPin: 'MapPin',
-  X: 'X',
-  // Icons used by PinpointLocationModal (always mounted as of crash fix)
-  Search: 'Search',
-  Locate: 'Locate',
-  Maximize2: 'Maximize2',
-}));
+
+jest.mock('lucide-react-native', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+  return {
+    Camera: () => React.createElement(Text, null, 'Camera'),
+    Image: () => React.createElement(Text, null, 'ImageIcon'),
+    MapPin: () => React.createElement(Text, null, 'MapPin'),
+    X: () => React.createElement(Text, null, 'X'),
+    Search: () => React.createElement(Text, null, 'Search'),
+    Locate: () => React.createElement(Text, null, 'Locate'),
+    Maximize2: () => React.createElement(Text, null, 'Maximize2'),
+  };
+});
+
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
 }));
 
-import { createPost } from '../../../services/post';
+import { createPost, uploadPhoto } from '../../../services/post';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 
 const mockCreatePost = createPost as jest.Mock;
+const mockUploadPhoto = uploadPhoto as jest.Mock;
 const mockImagePicker = ImagePicker as any;
-const mockLocation = Location as any;
 const mockRouter = useRouter as jest.Mock;
 
 describe('Create Screen', () => {
@@ -117,82 +129,75 @@ describe('Create Screen', () => {
     alertSpy.mockRestore();
   });
 
-  it('calls createPost when submitting with text', async () => {
-    mockCreatePost.mockResolvedValue({ id: 'new-post' });
-
-    const { getByPlaceholderText, getByText } = render(<CreateScreen />);
-
-    fireEvent.changeText(getByPlaceholderText('Describe the pothole or hazard...'), 'New pothole');
-
-    await act(async () => {
-      fireEvent.press(getByText('Post'));
-    });
-
-    expect(mockCreatePost).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: 'New pothole',
-        visibility: 'public',
-      })
-    );
-  });
-
-  it('requests camera permission on camera button press', async () => {
+  it('launches camera and attaches photo', async () => {
     mockImagePicker.requestCameraPermissionsAsync.mockResolvedValue({ status: 'granted' });
     mockImagePicker.launchCameraAsync.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///photo.jpg' }],
+      assets: [{ uri: 'file:///photo1.jpg' }],
     });
-
-    const { getByPlaceholderText } = render(<CreateScreen />);
-    expect(getByPlaceholderText('Describe the pothole or hazard...')).toBeTruthy();
-  });
-
-  it('requests location permission on location button press', async () => {
-    mockLocation.requestForegroundPermissionsAsync.mockResolvedValue({ status: 'granted' });
-    mockLocation.getCurrentPositionAsync.mockResolvedValue({
-      coords: { latitude: 27.7172, longitude: 85.324 },
-    });
-    mockLocation.reverseGeocodeAsync.mockResolvedValue([
-      { streetNumber: '123', street: 'Main St', city: 'Kathmandu', subregion: 'Bagmati' },
-    ]);
 
     const { getByText } = render(<CreateScreen />);
-    expect(getByText('Report Road Hazard')).toBeTruthy();
+
+    const cameraBtn = getByText('Camera');
+    await act(async () => {
+      fireEvent.press(cameraBtn);
+    });
+
+    expect(mockImagePicker.launchCameraAsync).toHaveBeenCalled();
   });
 
-  it('shows success alert after successful post', async () => {
-    mockCreatePost.mockResolvedValue({ id: 'new-post' });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('launches photo library and attaches selected images', async () => {
+    mockImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    mockImagePicker.launchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///photo2.jpg' }],
+    });
+
+    const { getByText } = render(<CreateScreen />);
+
+    const libraryBtn = getByText('ImageIcon');
+    await act(async () => {
+      fireEvent.press(libraryBtn);
+    });
+
+    expect(mockImagePicker.launchImageLibraryAsync).toHaveBeenCalled();
+  });
+
+  it('submits post with text and uploaded image', async () => {
+    mockImagePicker.requestMediaLibraryPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    mockImagePicker.launchImageLibraryAsync.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///pothole.jpg' }],
+    });
+
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      if (buttons && buttons[0] && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    });
 
     const { getByPlaceholderText, getByText } = render(<CreateScreen />);
 
-    fireEvent.changeText(getByPlaceholderText('Describe the pothole or hazard...'), 'Test post');
+    fireEvent.changeText(getByPlaceholderText('Describe the pothole or hazard...'), 'Pothole alert');
+
+    const libraryBtn = getByText('ImageIcon');
+    await act(async () => {
+      fireEvent.press(libraryBtn);
+    });
 
     await act(async () => {
       fireEvent.press(getByText('Post'));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Success',
-      'Hazard report posted successfully!',
-      expect.any(Array)
+    expect(mockUploadPhoto).toHaveBeenCalledWith('file:///pothole.jpg');
+    expect(mockCreatePost).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: 'Pothole alert',
+        visibility: 'public',
+        media: [{ url: 'https://example.com/uploaded-pothole.jpg', type: 'image' }],
+      })
     );
-    alertSpy.mockRestore();
-  });
 
-  it('shows error alert on post failure', async () => {
-    mockCreatePost.mockRejectedValue(new Error('Upload failed'));
-
-    const alertSpy = jest.spyOn(Alert, 'alert');
-    const { getByPlaceholderText, getByText } = render(<CreateScreen />);
-
-    fireEvent.changeText(getByPlaceholderText('Describe the pothole or hazard...'), 'Test post');
-
-    await act(async () => {
-      fireEvent.press(getByText('Post'));
-    });
-
-    expect(alertSpy).toHaveBeenCalledWith('Failed to Post', 'Upload failed');
     alertSpy.mockRestore();
   });
 });

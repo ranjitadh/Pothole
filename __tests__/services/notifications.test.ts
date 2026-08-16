@@ -5,12 +5,15 @@
  * Covers both the new granular API and the legacy registerForPushNotificationsAsync.
  */
 import * as Notifications from 'expo-notifications';
+import { Platform, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   registerForPushNotificationsAsync,
   sendTestPushNotification,
   getNotificationPermissionStatus,
   requestNotificationPermission,
+  openNotificationSettings,
+  createAndroidNotificationChannel,
   registerAndUpsertToken,
   deactivateTokens,
   hasActiveToken,
@@ -21,7 +24,11 @@ import {
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 jest.mock('expo-notifications', () => ({
-  setNotificationHandler: jest.fn(),
+  setNotificationHandler: jest.fn().mockImplementation((config) => {
+    if (config && config.handleNotification) {
+      config.handleNotification();
+    }
+  }),
   getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[token-123]' }),
@@ -62,7 +69,7 @@ const mockSupabase = supabase as any;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  // Reset supabase chain for each test
+  (Platform as any).OS = 'ios';
   mockSupabase.from.mockReturnThis();
   mockSupabase.upsert.mockResolvedValue({ data: null, error: null });
   mockSupabase.update.mockReturnThis();
@@ -98,6 +105,12 @@ describe('getNotificationPermissionStatus', () => {
     const result = await getNotificationPermissionStatus();
     expect(result).toBe('undetermined');
   });
+
+  it('returns undetermined on web platform', async () => {
+    (Platform as any).OS = 'web';
+    const result = await getNotificationPermissionStatus();
+    expect(result).toBe('undetermined');
+  });
 });
 
 // ── requestNotificationPermission ────────────────────────────────────────────
@@ -123,6 +136,50 @@ describe('requestNotificationPermission', () => {
     const result = await requestNotificationPermission();
     expect(result).toBe('denied');
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('returns undetermined on web platform', async () => {
+    (Platform as any).OS = 'web';
+    const result = await requestNotificationPermission();
+    expect(result).toBe('undetermined');
+  });
+
+  it('handles error in requestPermissionsAsync gracefully', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValueOnce({ status: 'undetermined' });
+    (Notifications.requestPermissionsAsync as jest.Mock).mockRejectedValueOnce(new Error('err'));
+    const result = await requestNotificationPermission();
+    expect(result).toBe('undetermined');
+  });
+});
+
+// ── openNotificationSettings & Android Channel ───────────────────────────────
+
+describe('openNotificationSettings and Channel', () => {
+  it('opens iOS settings link on iOS', () => {
+    const linkSpy = jest.spyOn(Linking, 'openURL').mockImplementation(() => Promise.resolve());
+    openNotificationSettings();
+    expect(linkSpy).toHaveBeenCalledWith('app-settings:');
+    linkSpy.mockRestore();
+  });
+
+  it('opens Android settings link on Android', () => {
+    (Platform as any).OS = 'android';
+    const linkSpy = jest.spyOn(Linking, 'openSettings').mockImplementation(() => Promise.resolve());
+    openNotificationSettings();
+    expect(linkSpy).toHaveBeenCalled();
+    linkSpy.mockRestore();
+  });
+
+  it('creates Android channel on android platform', async () => {
+    (Platform as any).OS = 'android';
+    await createAndroidNotificationChannel();
+    expect(Notifications.setNotificationChannelAsync).toHaveBeenCalled();
+  });
+
+  it('handles error in channel creation gracefully', async () => {
+    (Platform as any).OS = 'android';
+    (Notifications.setNotificationChannelAsync as jest.Mock).mockRejectedValueOnce(new Error('Channel err'));
+    await createAndroidNotificationChannel();
   });
 });
 
@@ -218,9 +275,20 @@ describe('getPersistedPreference / setPersistedPreference', () => {
     expect(result).toBeNull();
   });
 
+  it('returns null when AsyncStorage.getItem throws', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('storage error'));
+    const result = await getPersistedPreference();
+    expect(result).toBeNull();
+  });
+
   it('setPersistedPreference calls AsyncStorage.setItem', async () => {
     await setPersistedPreference('disabled');
     expect(AsyncStorage.setItem).toHaveBeenCalledWith('notif_pref', 'disabled');
+  });
+
+  it('setPersistedPreference throws on error', async () => {
+    (AsyncStorage.setItem as jest.Mock).mockRejectedValueOnce(new Error('write error'));
+    await expect(setPersistedPreference('disabled')).rejects.toThrow();
   });
 });
 
@@ -246,6 +314,18 @@ describe('registerForPushNotificationsAsync (legacy)', () => {
     const token = await registerForPushNotificationsAsync();
     expect(token).toBeNull();
   });
+
+  it('returns null on web platform', async () => {
+    (Platform as any).OS = 'web';
+    const token = await registerForPushNotificationsAsync();
+    expect(token).toBeNull();
+  });
+
+  it('handles errors gracefully and returns null', async () => {
+    (Notifications.getPermissionsAsync as jest.Mock).mockRejectedValueOnce(new Error('err'));
+    const token = await registerForPushNotificationsAsync();
+    expect(token).toBeNull();
+  });
 });
 
 describe('sendTestPushNotification', () => {
@@ -259,5 +339,11 @@ describe('sendTestPushNotification', () => {
         }),
       })
     );
+  });
+
+  it('returns false when scheduling fails', async () => {
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockRejectedValueOnce(new Error('fail'));
+    const success = await sendTestPushNotification();
+    expect(success).toBe(false);
   });
 });

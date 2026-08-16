@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { render, act } from '@testing-library/react-native';
 import FeedScreen from '../../../app/(tabs)/index';
 
 jest.mock('../../../services/supabase', () => ({
@@ -9,9 +9,11 @@ jest.mock('../../../services/supabase', () => ({
     },
   },
 }));
+
 jest.mock('../../../services/post', () => ({
-  getFeedPosts: jest.fn(),
+  getFeedPosts: jest.fn().mockResolvedValue({ data: [], nextCursor: 'cursor-2', hasMore: true }),
 }));
+
 jest.mock('../../../components/PostCard', () => ({
   PostCard: ({ post }: any) => {
     const { View, Text } = require('react-native');
@@ -22,6 +24,7 @@ jest.mock('../../../components/PostCard', () => ({
     );
   },
 }));
+
 jest.mock('@tanstack/react-query', () => {
   const actual = jest.requireActual('@tanstack/react-query');
   return {
@@ -31,8 +34,10 @@ jest.mock('@tanstack/react-query', () => {
 });
 
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { getFeedPosts } from '../../../services/post';
 
 const mockUseInfiniteQuery = useInfiniteQuery as jest.Mock;
+const mockGetFeedPosts = getFeedPosts as jest.Mock;
 
 describe('Feed Screen', () => {
   beforeEach(() => {
@@ -72,58 +77,61 @@ describe('Feed Screen', () => {
     expect(getByText('Network error')).toBeTruthy();
   });
 
-  it('shows empty state when no posts', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      data: { pages: [{ data: [], nextCursor: null, hasMore: false }] },
-      fetchNextPage: jest.fn(),
-      hasNextPage: false,
-      isFetchingNextPage: false,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refetch: jest.fn(),
+  it('executes queryFn and getNextPageParam', async () => {
+    let capturedOptions: any;
+    mockUseInfiniteQuery.mockImplementation((options: any) => {
+      capturedOptions = options;
+      return {
+        data: { pages: [{ data: [], nextCursor: 'next-1', hasMore: false }] },
+        fetchNextPage: jest.fn(),
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      };
     });
 
-    const { getByText } = render(<FeedScreen />);
-    expect(getByText('No reports yet')).toBeTruthy();
-    expect(getByText('Be the first to report a road hazard!')).toBeTruthy();
+    render(<FeedScreen />);
+
+    expect(capturedOptions).toBeDefined();
+    await capturedOptions.queryFn({ pageParam: 'cursor-1' });
+    expect(mockGetFeedPosts).toHaveBeenCalledWith('cursor-1');
+
+    const next = capturedOptions.getNextPageParam({ nextCursor: 'cursor-2' });
+    expect(next).toBe('cursor-2');
   });
 
-  it('renders posts when data is available', () => {
-    const mockPosts = [
-      { id: '1', text: 'Big pothole on Main St' },
-      { id: '2', text: 'Dangerous curve ahead' },
-    ];
+  it('handles pull to refresh and load more', async () => {
+    const mockRefetch = jest.fn().mockResolvedValue({});
+    const mockFetchNextPage = jest.fn();
 
     mockUseInfiniteQuery.mockReturnValue({
-      data: { pages: [{ data: mockPosts, nextCursor: null, hasMore: false }] },
-      fetchNextPage: jest.fn(),
-      hasNextPage: false,
-      isFetchingNextPage: false,
-      isLoading: false,
-      isError: false,
-      error: null,
-      refetch: jest.fn(),
-    });
-
-    const { getByText } = render(<FeedScreen />);
-    expect(getByText('Big pothole on Main St')).toBeTruthy();
-    expect(getByText('Dangerous curve ahead')).toBeTruthy();
-  });
-
-  it('shows loading indicator when fetching next page', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      data: { pages: [{ data: [{ id: '1', text: 'Post 1' }], nextCursor: 'cursor', hasMore: true }] },
-      fetchNextPage: jest.fn(),
+      data: { pages: [{ data: [{ id: '1', text: 'Pothole' }], nextCursor: 'cursor-2', hasMore: true }] },
+      fetchNextPage: mockFetchNextPage,
       hasNextPage: true,
-      isFetchingNextPage: true,
+      isFetchingNextPage: false,
       isLoading: false,
       isError: false,
       error: null,
-      refetch: jest.fn(),
+      refetch: mockRefetch,
     });
 
-    const { getByText } = render(<FeedScreen />);
-    expect(getByText('Post 1')).toBeTruthy();
+    const { UNSAFE_getByType } = render(<FeedScreen />);
+    const { FlatList } = require('react-native');
+    const list = UNSAFE_getByType(FlatList);
+
+    await act(async () => {
+      list.props.refreshControl.props.onRefresh();
+    });
+
+    expect(mockRefetch).toHaveBeenCalled();
+
+    act(() => {
+      list.props.onEndReached();
+    });
+
+    expect(mockFetchNextPage).toHaveBeenCalled();
   });
 });

@@ -88,6 +88,60 @@ describe('Register Screen', () => {
     alertSpy.mockRestore();
   });
 
+  it('shows error alert when username contains invalid characters', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
+
+    const inputs = getAllByPlaceholderText('••••••••');
+    fireEvent.changeText(getByPlaceholderText('username'), 'user!@#');
+    fireEvent.changeText(getByPlaceholderText('John Doe'), 'Test User');
+    fireEvent.changeText(getByPlaceholderText('you@example.com'), 'test@example.com');
+    fireEvent.changeText(inputs[0], 'password123');
+
+    await act(async () => {
+      fireEvent.press(getByText('Sign Up'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('Invalid Username', expect.any(String));
+    alertSpy.mockRestore();
+  });
+
+  it('shows error alert when email is invalid format', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
+
+    const inputs = getAllByPlaceholderText('••••••••');
+    fireEvent.changeText(getByPlaceholderText('username'), 'validuser');
+    fireEvent.changeText(getByPlaceholderText('John Doe'), 'Test User');
+    fireEvent.changeText(getByPlaceholderText('you@example.com'), 'invalidemail');
+    fireEvent.changeText(inputs[0], 'password123');
+
+    await act(async () => {
+      fireEvent.press(getByText('Sign Up'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('Error', 'Please enter a valid email address');
+    alertSpy.mockRestore();
+  });
+
+  it('shows error alert when password is less than 6 chars', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
+
+    const inputs = getAllByPlaceholderText('••••••••');
+    fireEvent.changeText(getByPlaceholderText('username'), 'validuser');
+    fireEvent.changeText(getByPlaceholderText('John Doe'), 'Test User');
+    fireEvent.changeText(getByPlaceholderText('you@example.com'), 'test@example.com');
+    fireEvent.changeText(inputs[0], '123');
+
+    await act(async () => {
+      fireEvent.press(getByText('Sign Up'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('Error', 'Password must be at least 6 characters');
+    alertSpy.mockRestore();
+  });
+
   it('shows error alert when passwords do not match', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
@@ -107,8 +161,16 @@ describe('Register Screen', () => {
     alertSpy.mockRestore();
   });
 
-  it('calls supabase signUp on valid input', async () => {
+  it('calls supabase signUp and navigates when OK clicked', async () => {
     mockSupabase.auth.signUp.mockResolvedValue({ data: { user: { id: '1' }, session: null }, error: null });
+    const replaceMock = jest.fn();
+    mockRouter.mockReturnValue({ push: jest.fn(), replace: replaceMock });
+
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      if (buttons && buttons[0] && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    });
 
     const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
 
@@ -133,11 +195,13 @@ describe('Register Screen', () => {
         },
       },
     });
+    expect(replaceMock).toHaveBeenCalledWith('/login');
+    alertSpy.mockRestore();
   });
 
-  it('shows success alert after registration', async () => {
-    mockSupabase.auth.signUp.mockResolvedValue({ data: { user: { id: '1' }, session: null }, error: null });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('shows auto-sign in alert when session exists', async () => {
+    mockSupabase.auth.signUp.mockResolvedValue({ data: { user: { id: '1' }, session: { access_token: '123' } }, error: null });
+    const alertSpy = jest.spyOn(Alert, 'alert');
 
     const { getByPlaceholderText, getAllByPlaceholderText, getByText } = render(<RegisterScreen />);
 
@@ -152,11 +216,7 @@ describe('Register Screen', () => {
       fireEvent.press(getByText('Sign Up'));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Success',
-      'Registration successful! Please check your email to verify your account.',
-      expect.any(Array)
-    );
+    expect(alertSpy).toHaveBeenCalledWith('Success', 'Account created successfully!');
     alertSpy.mockRestore();
   });
 

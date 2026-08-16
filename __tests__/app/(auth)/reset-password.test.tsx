@@ -55,6 +55,22 @@ describe('Reset Password Screen', () => {
     alertSpy.mockRestore();
   });
 
+  it('shows error alert when password is less than 6 characters', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getAllByPlaceholderText, getByText } = render(<ResetPasswordScreen />);
+
+    const inputs = getAllByPlaceholderText('••••••••');
+    fireEvent.changeText(inputs[0], '12345');
+    fireEvent.changeText(inputs[1], '12345');
+
+    await act(async () => {
+      fireEvent.press(getByText('Update Password'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('Error', 'Password must be at least 6 characters long');
+    alertSpy.mockRestore();
+  });
+
   it('shows error alert when passwords do not match', async () => {
     const alertSpy = jest.spyOn(Alert, 'alert');
     const { getAllByPlaceholderText, getByText } = render(<ResetPasswordScreen />);
@@ -71,8 +87,16 @@ describe('Reset Password Screen', () => {
     alertSpy.mockRestore();
   });
 
-  it('calls updateUser on valid input', async () => {
+  it('calls updateUser and navigates to login when OK pressed', async () => {
     mockSupabase.auth.updateUser.mockResolvedValue({ data: { user: {} }, error: null });
+    const replaceMock = jest.fn();
+    mockRouter.mockReturnValue({ push: jest.fn(), replace: replaceMock });
+
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      if (buttons && buttons[0] && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    });
 
     const { getAllByPlaceholderText, getByText } = render(<ResetPasswordScreen />);
 
@@ -87,11 +111,13 @@ describe('Reset Password Screen', () => {
     expect(mockSupabase.auth.updateUser).toHaveBeenCalledWith({
       password: 'newpassword123',
     });
+    expect(replaceMock).toHaveBeenCalledWith('/login');
+    alertSpy.mockRestore();
   });
 
-  it('shows success alert after updating password', async () => {
-    mockSupabase.auth.updateUser.mockResolvedValue({ data: { user: {} }, error: null });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('shows error alert when updateUser throws', async () => {
+    mockSupabase.auth.updateUser.mockResolvedValue({ error: { message: 'Token expired' } });
+    const alertSpy = jest.spyOn(Alert, 'alert');
 
     const { getAllByPlaceholderText, getByText } = render(<ResetPasswordScreen />);
 
@@ -103,12 +129,18 @@ describe('Reset Password Screen', () => {
       fireEvent.press(getByText('Update Password'));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Success',
-      'Your password has been reset successfully.',
-      expect.any(Array)
-    );
+    expect(alertSpy).toHaveBeenCalledWith('Reset Failed', 'Token expired');
     alertSpy.mockRestore();
+  });
+
+  it('toggles password visibility', () => {
+    const { getByText, getAllByPlaceholderText } = render(<ResetPasswordScreen />);
+
+    const inputs = getAllByPlaceholderText('••••••••');
+    expect(inputs[0].props.secureTextEntry).toBe(true);
+
+    fireEvent.press(getByText('Show'));
+    expect(inputs[0].props.secureTextEntry).toBe(false);
   });
 
   it('navigates to login on Back to Sign In press', () => {

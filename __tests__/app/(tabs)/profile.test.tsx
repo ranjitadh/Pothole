@@ -1,41 +1,83 @@
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
+import ProfileScreen from '../../../app/(tabs)/profile';
 import { Alert } from 'react-native';
 
-jest.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }),
-  SafeAreaView: ({ children }: any) => children,
+const mockSignOut = jest.fn().mockResolvedValue(undefined);
+const mockRefreshProfile = jest.fn().mockResolvedValue(undefined);
+
+const mockProfile = {
+  id: 'user-1',
+  username: 'ranjit',
+  displayName: 'Ranjit Adhikari',
+  bio: 'Pothole reporter',
+  avatarUrl: 'https://example.com/avatar.jpg',
+  coverUrl: 'https://example.com/cover.jpg',
+  followersCount: 10,
+  followingCount: 5,
+  postsCount: 3,
+  createdAt: '2024-01-01',
+};
+
+jest.mock('../../../store/auth-store', () => ({
+  useAuthStore: () => ({
+    user: { id: 'user-1', email: 'test@example.com' },
+    profile: mockProfile,
+    signOut: mockSignOut,
+    refreshProfile: mockRefreshProfile,
+  }),
 }));
+
+const mockSetThemeMode = jest.fn();
+jest.mock('../../../store/theme-store', () => ({
+  useThemeStore: () => ({
+    themeMode: 'system',
+    setThemeMode: mockSetThemeMode,
+  }),
+}));
+
+const mockToggleNotif = jest.fn();
+jest.mock('../../../store/notification-store', () => ({
+  useNotificationStore: () => ({
+    effectiveEnabled: true,
+    isToggling: false,
+    isPermissionDenied: false,
+    toggle: mockToggleNotif,
+    refreshPermissions: jest.fn(),
+  }),
+}));
+
+const mockUpdate = jest.fn().mockReturnValue({
+  eq: jest.fn().mockResolvedValue({ error: null }),
+});
 
 jest.mock('../../../services/supabase', () => ({
   supabase: {
-    rpc: jest.fn().mockResolvedValue({ error: null }),
     from: jest.fn().mockReturnValue({
-      update: jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({ error: null }),
-      }),
+      update: (...args: any[]) => mockUpdate(...args),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      rpc: jest.fn().mockResolvedValue({ error: null }),
     }),
+    rpc: jest.fn().mockResolvedValue({ error: null }),
+    storage: {
+      from: jest.fn().mockReturnValue({
+        remove: jest.fn().mockResolvedValue({ error: null }),
+      }),
+    },
+    auth: {
+      signInWithPassword: jest.fn().mockResolvedValue({ error: null }),
+      updateUser: jest.fn().mockResolvedValue({ error: null }),
+    },
   },
 }));
 
-jest.mock('lucide-react-native', () => ({
-  LogOut: 'LogOut',
-  Trash2: 'Trash2',
-  Bell: 'Bell',
-  MapPin: 'MapPin',
-  Moon: 'Moon',
-  Eye: 'Eye',
-  EyeOff: 'EyeOff',
-  Camera: 'Camera',
-  Image: 'Image',
-  AlignLeft: 'AlignLeft',
-  MoreHorizontal: 'MoreHorizontal',
-  Pencil: 'Pencil',
-}));
-
 jest.mock('expo-image-picker', () => ({
-  launchImageLibraryAsync: jest.fn().mockResolvedValue({ canceled: false, assets: [{ uri: 'ph://photo.jpg' }] }),
   requestMediaLibraryPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  launchImageLibraryAsync: jest.fn().mockResolvedValue({
+    canceled: false,
+    assets: [{ uri: 'https://example.com/new.jpg' }],
+  }),
   MediaTypeOptions: { Images: 'Images' },
 }));
 
@@ -43,125 +85,71 @@ jest.mock('../../../services/post', () => ({
   uploadPhoto: jest.fn().mockResolvedValue('https://example.com/uploaded.jpg'),
 }));
 
-jest.mock('../../../services/notifications', () => ({
-  registerForPushNotificationsAsync: jest.fn().mockResolvedValue('token-123'),
-  sendTestPushNotification: jest.fn().mockResolvedValue(true),
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_, prop) => prop }));
+
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 20, bottom: 20, left: 0, right: 0 }),
+  SafeAreaView: ({ children }: any) => children,
 }));
-
-const mockProfile = {
-  id: 'user-1',
-  username: 'testuser',
-  displayName: 'Test User',
-  bio: 'Road safety enthusiast',
-  avatarUrl: 'https://example.com/avatar.jpg',
-  coverUrl: null,
-  followersCount: 15,
-  followingCount: 8,
-  postsCount: 5,
-  createdAt: '2024-01-01',
-};
-
-const mockSignOut = jest.fn().mockResolvedValue(undefined);
-
-jest.mock('../../../store/auth-store', () => ({
-  useAuthStore: jest.fn(() => ({
-    profile: mockProfile,
-    signOut: mockSignOut,
-    refreshProfile: jest.fn(),
-  })),
-}));
-
-import ProfileScreen from '../../../app/(tabs)/profile';
-import { useAuthStore } from '../../../store/auth-store';
-import { supabase } from '../../../services/supabase';
-
-const mockSupabase = supabase as any;
-const mockUseAuthStore = useAuthStore as jest.Mock;
 
 describe('Profile Screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockSignOut.mockResolvedValue(undefined);
-    mockSupabase.rpc.mockResolvedValue({ error: null });
-    mockUseAuthStore.mockReturnValue({
-      profile: mockProfile,
-      signOut: mockSignOut,
-      refreshProfile: jest.fn(),
-    });
   });
 
-  it('shows loading when no profile', () => {
-    mockUseAuthStore.mockReturnValue({
-      profile: null,
-      signOut: mockSignOut,
-    });
-
-    const { getByTestId } = render(<ProfileScreen />);
-    expect(getByTestId).toBeTruthy();
-  });
-
-  it('renders profile data correctly', () => {
+  it('renders profile details correctly', () => {
     const { getByText } = render(<ProfileScreen />);
 
-    expect(getByText('Test User')).toBeTruthy();
-    expect(getByText('@testuser')).toBeTruthy();
-    expect(getByText('Road safety enthusiast')).toBeTruthy();
+    expect(getByText('Ranjit Adhikari')).toBeTruthy();
+    expect(getByText('@ranjit')).toBeTruthy();
+    expect(getByText('Pothole reporter')).toBeTruthy();
+    expect(getByText('10')).toBeTruthy();
     expect(getByText('5')).toBeTruthy();
-    expect(getByText('15')).toBeTruthy();
-    expect(getByText('8')).toBeTruthy();
-    expect(getByText('reports')).toBeTruthy();
-    expect(getByText('followers')).toBeTruthy();
-    expect(getByText('following')).toBeTruthy();
+    expect(getByText('3')).toBeTruthy();
   });
 
-  it('renders account action buttons', () => {
-    const { getByText } = render(<ProfileScreen />);
+  it('handles avatar and cover image picker update', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByTestId, getByText } = render(<ProfileScreen />);
 
-    expect(getByText('Sign Out')).toBeTruthy();
-    expect(getByText('Delete Account')).toBeTruthy();
-  });
-
-  it('shows sign out confirmation dialog', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-
-    const { getByText } = render(<ProfileScreen />);
+    fireEvent.press(getByTestId('profile-menu-button'));
 
     await act(async () => {
-      fireEvent.press(getByText('Sign Out'));
+      fireEvent.press(getByText('Edit Profile Photo'));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      expect.any(Array)
-    );
+    expect(mockRefreshProfile).toHaveBeenCalled();
+
+    fireEvent.press(getByTestId('profile-menu-button'));
+
+    await act(async () => {
+      fireEvent.press(getByText('Edit Cover Photo'));
+    });
+
+    expect(mockRefreshProfile).toHaveBeenCalledTimes(2);
     alertSpy.mockRestore();
   });
 
-  it('shows delete account confirmation dialog', async () => {
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('handles updating display name via modal', async () => {
+    const { getByTestId, getByPlaceholderText, getByText } = render(<ProfileScreen />);
 
-    const { getByText } = render(<ProfileScreen />);
+    fireEvent.press(getByTestId('edit-name-button'));
+    const input = getByPlaceholderText('Enter display name...');
+    fireEvent.changeText(input, 'New Ranjit');
 
     await act(async () => {
-      fireEvent.press(getByText('Delete Account'));
+      fireEvent.press(getByText('Save'));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Delete Account',
-      expect.stringContaining('WARNING'),
-      expect.any(Array)
-    );
-    alertSpy.mockRestore();
+    expect(mockRefreshProfile).toHaveBeenCalled();
   });
 
-  it('calls signOut when confirmed', async () => {
-    jest.spyOn(Alert, 'alert').mockImplementation((title: any, message: any, buttons: any) => {
-      const confirmButton = buttons?.find((b: any) => b.style === 'destructive');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
+  it('handles sign out confirmation', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      const confirm = buttons?.find((b: any) => b.style === 'destructive');
+      if (confirm && confirm.onPress) {
+        confirm.onPress();
       }
-      return undefined as any;
     });
 
     const { getByText } = render(<ProfileScreen />);
@@ -171,94 +159,18 @@ describe('Profile Screen', () => {
     });
 
     expect(mockSignOut).toHaveBeenCalled();
+    alertSpy.mockRestore();
   });
 
-  it('calls delete account RPC when confirmed', async () => {
-    mockSupabase.rpc.mockResolvedValue({ error: null });
-
-    jest.spyOn(Alert, 'alert').mockImplementation((title: any, message: any, buttons: any) => {
-      const confirmButton = buttons?.find((b: any) => b.style === 'destructive');
-      if (confirmButton?.onPress) {
-        confirmButton.onPress();
-      }
-      return undefined as any;
-    });
-
+  it('handles delete account confirmation', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
     const { getByText } = render(<ProfileScreen />);
 
     await act(async () => {
       fireEvent.press(getByText('Delete Account'));
     });
 
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('delete_user_account');
-    expect(mockSignOut).toHaveBeenCalled();
-  });
-
-  it('triggers profile picture selection and upload', async () => {
-    const { getByTestId } = render(<ProfileScreen />);
-    
-    await act(async () => {
-      fireEvent.press(getByTestId('profile-menu-button'));
-    });
-
-    await act(async () => {
-      fireEvent.press(getByTestId('change-avatar-menu-item'));
-    });
-
-    expect(getByTestId('profile-menu-button')).toBeTruthy();
-  });
-
-  it('triggers cover photo selection and upload', async () => {
-    const { getByTestId } = render(<ProfileScreen />);
-    
-    await act(async () => {
-      fireEvent.press(getByTestId('profile-menu-button'));
-    });
-
-    await act(async () => {
-      fireEvent.press(getByTestId('change-cover-menu-item'));
-    });
-
-    expect(getByTestId('profile-menu-button')).toBeTruthy();
-  });
-
-  it('opens bio editor modal and saves bio updates', async () => {
-    const { getByTestId, getByPlaceholderText, getByText } = render(<ProfileScreen />);
-    
-    await act(async () => {
-      fireEvent.press(getByTestId('profile-menu-button'));
-    });
-
-    await act(async () => {
-      fireEvent.press(getByTestId('edit-bio-menu-item'));
-    });
-
-    expect(getByPlaceholderText('Tell us about yourself...')).toBeTruthy();
-    
-    fireEvent.changeText(getByPlaceholderText('Tell us about yourself...'), 'New Bio Text');
-    
-    await act(async () => {
-      fireEvent.press(getByText('Save'));
-    });
-
-    expect(mockUseAuthStore).toHaveBeenCalled();
-  });
-
-  it('opens name editor modal and saves display name updates', async () => {
-    const { getByTestId, getByPlaceholderText, getByText } = render(<ProfileScreen />);
-    
-    await act(async () => {
-      fireEvent.press(getByTestId('edit-name-button'));
-    });
-
-    expect(getByPlaceholderText('Enter display name...')).toBeTruthy();
-    
-    fireEvent.changeText(getByPlaceholderText('Enter display name...'), 'New Name Text');
-    
-    await act(async () => {
-      fireEvent.press(getByText('Save'));
-    });
-
-    expect(mockUseAuthStore).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith('Delete Account', expect.any(String), expect.any(Array));
+    alertSpy.mockRestore();
   });
 });

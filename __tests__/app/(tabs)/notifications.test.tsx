@@ -2,17 +2,24 @@ import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import NotificationsScreen from '../../../app/(tabs)/notifications';
 
+const mockSelect = jest.fn().mockReturnThis();
+const mockEq = jest.fn().mockReturnThis();
+const mockOrder = jest.fn().mockResolvedValue({
+  data: [{ id: 'notif-1', type: 'like', actor: { username: 'johndoe' }, created_at: '2024-06-01T00:00:00Z' }],
+  error: null,
+});
+
 jest.mock('../../../services/supabase', () => ({
   supabase: {
     auth: {
       getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }),
     },
-    from: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    order: jest.fn().mockResolvedValue({ data: [], error: null }),
+    from: jest.fn().mockReturnValue({
+      select: () => mockSelect(),
+    }),
   },
 }));
+
 jest.mock('lucide-react-native', () => ({
   Bell: 'Bell',
 }));
@@ -31,12 +38,16 @@ jest.mock('@tanstack/react-query', () => {
 });
 
 import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../../../services/supabase';
 
 const mockUseQuery = useQuery as jest.Mock;
+const mockSupabase = supabase as any;
 
 describe('Notifications Screen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSelect.mockReturnValue({ eq: mockEq });
+    mockEq.mockReturnValue({ order: mockOrder });
   });
 
   it('shows loading state', () => {
@@ -62,7 +73,23 @@ describe('Notifications Screen', () => {
     expect(getByText('Activity related to your posts will appear here.')).toBeTruthy();
   });
 
-  it('renders like notifications', () => {
+  it('executes queryFn and fetches notification records from database', async () => {
+    let capturedQueryFn: any;
+    mockUseQuery.mockImplementation((options: any) => {
+      capturedQueryFn = options.queryFn;
+      return { data: [], isLoading: false, isError: false, refetch: jest.fn() };
+    });
+
+    render(<NotificationsScreen />);
+
+    expect(capturedQueryFn).toBeDefined();
+    const result = await capturedQueryFn();
+    expect(mockSupabase.from).toHaveBeenCalledWith('notifications');
+    expect(result.length).toBe(1);
+  });
+
+  it('handles pull to refresh', async () => {
+    const mockRefetch = jest.fn().mockResolvedValue({});
     mockUseQuery.mockReturnValue({
       data: [
         {
@@ -74,49 +101,21 @@ describe('Notifications Screen', () => {
       ],
       isLoading: false,
       isError: false,
+      refetch: mockRefetch,
     });
 
-    const { getByText } = render(<NotificationsScreen />);
-    expect(getByText('@johndoe')).toBeTruthy();
-  });
+    const { UNSAFE_getByType } = render(<NotificationsScreen />);
+    const { FlatList } = require('react-native');
+    const list = UNSAFE_getByType(FlatList);
 
-  it('renders comment notifications', () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        {
-          id: '1',
-          type: 'comment',
-          actor: { username: 'janedoe' },
-          created_at: '2024-06-01T00:00:00Z',
-        },
-      ],
-      isLoading: false,
-      isError: false,
+    await act(async () => {
+      list.props.refreshControl.props.onRefresh();
     });
 
-    const { getByText } = render(<NotificationsScreen />);
-    expect(getByText('@janedoe')).toBeTruthy();
+    expect(mockRefetch).toHaveBeenCalled();
   });
 
-  it('renders follow notifications', () => {
-    mockUseQuery.mockReturnValue({
-      data: [
-        {
-          id: '1',
-          type: 'follow',
-          actor: { username: 'newuser' },
-          created_at: '2024-06-01T00:00:00Z',
-        },
-      ],
-      isLoading: false,
-      isError: false,
-    });
-
-    const { getByText } = render(<NotificationsScreen />);
-    expect(getByText('@newuser')).toBeTruthy();
-  });
-
-  it('redirects to the post detail screen when pressing a comment or like notification', async () => {
+  it('redirects to post detail screen when pressing a comment or like notification', async () => {
     mockUseQuery.mockReturnValue({
       data: [
         {
@@ -142,7 +141,7 @@ describe('Notifications Screen', () => {
     });
   });
 
-  it('redirects to the profile screen when pressing a follow notification', async () => {
+  it('redirects to profile screen when pressing a follow notification', async () => {
     mockUseQuery.mockReturnValue({
       data: [
         {

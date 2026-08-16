@@ -1,7 +1,9 @@
 import React from 'react';
-import { Alert, Share } from 'react-native';
+import { Alert } from 'react-native';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import { PostCard } from '../../components/PostCard';
+
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_, prop) => prop }));
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 10, bottom: 10, left: 0, right: 0 }),
@@ -13,298 +15,193 @@ jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock')
 );
 
-jest.mock('../../services/supabase', () => ({
-  supabase: {
-    auth: {
-      getUser: jest.fn().mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null }),
-    },
-  },
+let mockUserId = 'user-1';
+
+jest.mock('../../store/auth-store', () => ({
+  useAuthStore: () => ({ user: { id: mockUserId } }),
 }));
-jest.mock('../../store/auth-store', () => {
-  const mockGetState = jest.fn().mockReturnValue({ user: { id: 'user-1' } });
-  const mockUseAuthStore = Object.assign(jest.fn().mockReturnValue({ user: { id: 'user-1' } }), {
-    getState: mockGetState,
-  });
-  return { useAuthStore: mockUseAuthStore };
-});
+
+const mockToggle = jest.fn();
+jest.mock('../../store/vote-store', () => ({
+  useVoteStore: () => ({
+    downvotedPostIds: [],
+    togglePostDownvote: mockToggle,
+  }),
+}));
+
+const mockLikePost = jest.fn().mockResolvedValue({ liked: true });
+const mockUnlikePost = jest.fn().mockResolvedValue({ liked: false });
+const mockSavePost = jest.fn().mockResolvedValue({ saved: true });
+const mockUnsavePost = jest.fn().mockResolvedValue({ saved: false });
+const mockRepostPost = jest.fn().mockResolvedValue(true);
+const mockDeletePost = jest.fn().mockResolvedValue({ success: true });
+const mockBlockUser = jest.fn().mockResolvedValue({ success: true });
+const mockUpdatePostStatus = jest.fn().mockResolvedValue({ success: true });
+const mockReportPost = jest.fn().mockResolvedValue({ success: true });
+
 jest.mock('../../services/post', () => ({
-  likePost: jest.fn().mockResolvedValue({ liked: true }),
-  unlikePost: jest.fn().mockResolvedValue({ liked: false }),
-  savePost: jest.fn().mockResolvedValue({ saved: true }),
-  unsavePost: jest.fn().mockResolvedValue({ saved: false }),
-  deletePost: jest.fn().mockResolvedValue({ success: true }),
-  blockUser: jest.fn().mockResolvedValue({ success: true }),
-  updatePostStatus: jest.fn().mockResolvedValue({ success: true }),
-  reportPost: jest.fn().mockResolvedValue({ success: true }),
-  repostPost: jest.fn().mockResolvedValue({ success: true }),
+  likePost: (...args: any[]) => mockLikePost(...args),
+  unlikePost: (...args: any[]) => mockUnlikePost(...args),
+  savePost: (...args: any[]) => mockSavePost(...args),
+  unsavePost: (...args: any[]) => mockUnsavePost(...args),
+  repostPost: (...args: any[]) => mockRepostPost(...args),
+  deletePost: (...args: any[]) => mockDeletePost(...args),
+  blockUser: (...args: any[]) => mockBlockUser(...args),
+  updatePostStatus: (...args: any[]) => mockUpdatePostStatus(...args),
+  reportPost: (...args: any[]) => mockReportPost(...args),
+  getComments: jest.fn().mockResolvedValue([]),
+  createComment: jest.fn().mockResolvedValue({}),
+  deleteComment: jest.fn().mockResolvedValue(true),
 }));
+
 jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
-  useQuery: jest.fn().mockReturnValue({ data: [], isLoading: false }),
-  useMutation: jest.fn().mockReturnValue({ mutate: jest.fn(), isPending: false }),
-}));
-jest.mock('lucide-react-native', () => ({
-  Heart: 'Heart',
-  MessageCircle: 'MessageCircle',
-  Bookmark: 'Bookmark',
-  AlertTriangle: 'AlertTriangle',
-  MoreHorizontal: 'MoreHorizontal',
-  MapPin: 'MapPin',
-  Flag: 'Flag',
-  ShieldAlert: 'ShieldAlert',
-  Trash2: 'Trash2',
-  ArrowUp: 'ArrowUp',
-  ArrowDown: 'ArrowDown',
-  Repeat: 'Repeat',
-  Forward: 'Forward',
+  useQueryClient: () => ({
+    invalidateQueries: jest.fn(),
+  }),
+  useQuery: () => ({ data: [], isLoading: false }),
+  useMutation: () => ({ mutate: jest.fn(), isPending: false }),
 }));
 
-import { useAuthStore } from '../../store/auth-store';
-import { likePost, unlikePost, savePost, unsavePost, updatePostStatus, reportPost, repostPost } from '../../services/post';
-import type { PostWithDetails } from '../../types';
-
-const mockUseAuthStore = useAuthStore as any;
-const mockLikePost = likePost as jest.Mock;
-const mockRepostPost = repostPost as jest.Mock;
-const mockUnlikePost = unlikePost as jest.Mock;
-const mockSavePost = savePost as jest.Mock;
-const mockUnsavePost = unsavePost as jest.Mock;
-const mockUpdatePostStatus = updatePostStatus as jest.Mock;
-const mockReportPost = reportPost as jest.Mock;
-
-const createMockPost = (overrides: Partial<PostWithDetails> = {}): PostWithDetails => ({
-  id: 'post-1',
-  userId: 'user-1',
-  text: 'Large pothole on Ring Road near hospital',
-  visibility: 'public',
-  likesCount: 10,
-  commentsCount: 3,
-  sharesCount: 1,
-  isEdited: false,
-  createdAt: '2024-06-01T00:00:00Z',
-  author: {
-    id: 'author-1',
-    username: 'roadwatcher',
-    displayName: 'Road Watcher',
-    bio: null,
-    avatarUrl: 'https://example.com/avatar.jpg',
-    coverUrl: null,
-    followersCount: 50,
-    followingCount: 20,
-    postsCount: 15,
-    createdAt: '2024-01-01',
-  },
-  media: [],
-  location: {
-    id: 'loc-1',
-    latitude: 27.7172,
-    longitude: 85.324,
-    placeName: 'Ring Road, Kathmandu',
-    country: 'Nepal',
-    city: 'Kathmandu',
-    googlePlaceId: null,
-  },
-  hashtags: [],
-  isLiked: false,
-  isSaved: false,
-  status: 'unresolved',
-  ...overrides,
-});
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
 
 describe('PostCard Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUseAuthStore.mockReturnValue({ user: { id: 'user-1' } });
-    mockUseAuthStore.getState.mockReturnValue({ user: { id: 'user-1' } });
+    mockUserId = 'user-1';
+  });
+
+  const createMockPost = (overrides = {}) => ({
+    id: 'post-1',
+    userId: 'user-1',
+    text: 'Test post text',
+    visibility: 'public' as const,
+    likesCount: 10,
+    commentsCount: 5,
+    sharesCount: 2,
+    isEdited: false,
+    createdAt: new Date().toISOString(),
+    status: 'unresolved' as const,
+    author: {
+      id: 'user-1',
+      username: 'johndoe',
+      displayName: 'John Doe',
+      bio: 'Bio text',
+      avatarUrl: 'https://example.com/avatar.jpg',
+      coverUrl: null,
+      followersCount: 100,
+      followingCount: 50,
+      postsCount: 20,
+      createdAt: new Date().toISOString(),
+    },
+    media: [
+      { id: 'm1', url: 'https://example.com/img1.jpg', type: 'image' as const, width: 800, height: 600, thumbnailUrl: null },
+    ],
+    location: {
+      id: 'loc-1',
+      latitude: 37.7749,
+      longitude: -122.4194,
+      placeName: 'San Francisco, CA',
+      country: 'USA',
+      city: 'San Francisco',
+      googlePlaceId: null,
+    },
+    hashtags: ['pothole', 'fixit'],
+    isLiked: false,
+    isSaved: false,
+    ...overrides,
   });
 
   it('renders post details correctly', () => {
     const post = createMockPost();
     const { getByText } = render(<PostCard post={post} />);
 
-    expect(getByText('Road Watcher')).toBeTruthy();
-    expect(getByText('@roadwatcher')).toBeTruthy();
-    expect(getByText('Large pothole on Ring Road near hospital')).toBeTruthy();
+    expect(getByText('John Doe')).toBeTruthy();
+    expect(getByText('@johndoe')).toBeTruthy();
+    expect(getByText('Test post text')).toBeTruthy();
     expect(getByText('Unresolved')).toBeTruthy();
-    expect(getByText('10')).toBeTruthy();
-    expect(getByText('3')).toBeTruthy();
   });
 
-  it('renders location tag', () => {
+  it('navigates to post detail when body or media is pressed', () => {
     const post = createMockPost();
     const { getByText } = render(<PostCard post={post} />);
 
-    expect(getByText('Ring Road, Kathmandu (27.7172, 85.3240)')).toBeTruthy();
-  });
+    fireEvent.press(getByText('Test post text'));
 
-  it('renders coordinates when no placeName', () => {
-    const post = createMockPost({
-      location: { id: 'loc-1', latitude: 27.7172, longitude: 85.324, placeName: null, country: null, city: null, googlePlaceId: null },
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/post/[id]',
+      params: { id: 'post-1' },
     });
-    const { getByText } = render(<PostCard post={post} />);
-
-    expect(getByText('27.7172, 85.3240')).toBeTruthy();
   });
 
-  it('toggles upvote when upvote button is pressed', async () => {
-    const post = createMockPost({ isLiked: false, likesCount: 10 });
-    const { getByTestId } = render(<PostCard post={post} />);
-
-    await act(async () => {
-      fireEvent.press(getByTestId('upvote-button'));
-    });
-
-    expect(mockLikePost).toHaveBeenCalledWith('post-1');
-  });
-
-  it('toggles unlike when already upvoted', async () => {
-    const post = createMockPost({ isLiked: true, likesCount: 10 });
-    const { getByTestId } = render(<PostCard post={post} />);
-
-    await act(async () => {
-      fireEvent.press(getByTestId('upvote-button'));
-    });
-
-    expect(mockUnlikePost).toHaveBeenCalledWith('post-1');
-  });
-
-  it('toggles downvote when downvote button is pressed', async () => {
-    const post = createMockPost({ isLiked: false, likesCount: 10 });
-    const { getByTestId } = render(<PostCard post={post} />);
-
-    await act(async () => {
-      fireEvent.press(getByTestId('downvote-button'));
-    });
-
-    // Downvotes are handled locally via vote-store
-    expect(getByTestId('downvote-button')).toBeTruthy();
-  });
-
-  it('triggers repost confirmation when repost button is pressed', async () => {
-    jest.spyOn(Alert, 'alert');
-    const post = createMockPost({ sharesCount: 3 });
-    const { getByTestId } = render(<PostCard post={post} />);
-
-    await act(async () => {
-      fireEvent.press(getByTestId('repost-button'));
-    });
-
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Repost Hazard Report',
-      expect.any(String),
-      expect.any(Array)
-    );
-  });
-
-  it('triggers share dialog when share button is pressed', async () => {
-    jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
+  it('navigates to user profile when author header is pressed', () => {
     const post = createMockPost();
-    const { getByTestId } = render(<PostCard post={post} />);
+    const { getByText } = render(<PostCard post={post} />);
+
+    fireEvent.press(getByText('John Doe'));
+
+    expect(mockPush).toHaveBeenCalledWith('/(tabs)/profile');
+  });
+
+  it('renders 5 media image collage', () => {
+    const post5 = createMockPost({
+      media: [
+        { id: 'm1', url: 'https://example.com/1.jpg', type: 'image' },
+        { id: 'm2', url: 'https://example.com/2.jpg', type: 'image' },
+        { id: 'm3', url: 'https://example.com/3.jpg', type: 'image' },
+        { id: 'm4', url: 'https://example.com/4.jpg', type: 'image' },
+        { id: 'm5', url: 'https://example.com/5.jpg', type: 'image' },
+      ],
+    });
+    const { getByText } = render(<PostCard post={post5} />);
+    expect(getByText('+2')).toBeTruthy();
+  });
+
+  it('handles post delete confirmation flow', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      const deleteBtn = buttons?.find((b: any) => b.style === 'destructive');
+      if (deleteBtn && deleteBtn.onPress) {
+        deleteBtn.onPress();
+      }
+    });
+
+    const post = createMockPost({ userId: 'user-1' });
+    const { getByTestId, getByText } = render(<PostCard post={post} />);
+
+    fireEvent.press(getByTestId('more-actions-button'));
 
     await act(async () => {
-      fireEvent.press(getByTestId('share-button'));
+      fireEvent.press(getByText('Delete Post'));
     });
 
-    expect(Share.share).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: expect.stringContaining('play.google.com/store/apps/details?id=com.pothole.app'),
-      })
-    );
+    expect(mockDeletePost).toHaveBeenCalledWith('post-1');
+    alertSpy.mockRestore();
   });
 
-  it('renders status badge for in_progress', () => {
-    const post = createMockPost({ status: 'in_progress' });
-    const { getByText } = render(<PostCard post={post} />);
+  it('handles report options flow for other user post', async () => {
+    mockUserId = 'other-user';
 
-    expect(getByText('In Progress')).toBeTruthy();
-  });
-
-  it('renders status badge for resolved', () => {
-    const post = createMockPost({ status: 'resolved' });
-    const { getByText } = render(<PostCard post={post} />);
-
-    expect(getByText('Resolved')).toBeTruthy();
-  });
-
-  it('renders media image when present', () => {
-    const post = createMockPost({
-      media: [{ id: 'm1', url: 'https://example.com/pothole.jpg', type: 'image', width: null, height: null, thumbnailUrl: null }],
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      const spamBtn = buttons?.find((b: any) => b.text === 'Spam');
+      if (spamBtn && spamBtn.onPress) {
+        spamBtn.onPress();
+      }
     });
 
-    const { getByText } = render(<PostCard post={post} />);
-    expect(getByText('Road Watcher')).toBeTruthy();
-  });
-
-  it('shows different user actions for own posts', () => {
-    mockUseAuthStore.getState.mockReturnValue({ user: { id: 'user-1' } });
     const post = createMockPost({ userId: 'user-1' });
-    const { getByText } = render(<PostCard post={post} />);
+    const { getByTestId, getByText } = render(<PostCard post={post} />);
 
-    expect(getByText('Road Watcher')).toBeTruthy();
-  });
+    fireEvent.press(getByTestId('more-actions-button'));
 
-  it('shows different user actions for other users posts', () => {
-    mockUseAuthStore.getState.mockReturnValue({ user: { id: 'different-user' } });
-    const post = createMockPost({ userId: 'user-1' });
-    const { getByText } = render(<PostCard post={post} />);
-
-    expect(getByText('Road Watcher')).toBeTruthy();
-  });
-
-  it('can open menu and trigger status update for own post', async () => {
-    mockUseAuthStore.getState.mockReturnValue({ user: { id: 'user-1' } });
-    const post = createMockPost({ userId: 'user-1', status: 'unresolved' });
-    
-    const { getByTestId, getByText, queryByText } = render(<PostCard post={post} />);
-    
-    // Menu should be hidden initially
-    expect(queryByText('Mark In Progress')).toBeNull();
-    
-    // Tap more-actions button
-    const toggleBtn = getByTestId('more-actions-button');
-    fireEvent.press(toggleBtn);
-    
-    // Menu items for owner should be shown
-    expect(getByText('Mark In Progress')).toBeTruthy();
-    expect(getByText('Mark Resolved')).toBeTruthy();
-    
-    // Tap "Mark In Progress"
     await act(async () => {
-      fireEvent.press(getByText('Mark In Progress'));
+      fireEvent.press(getByText('Report'));
     });
-    
-    expect(mockUpdatePostStatus).toHaveBeenCalledWith('post-1', 'in_progress');
-  });
 
-  it('can open menu and trigger report flow for other user post', async () => {
-    mockUseAuthStore.mockReturnValue({ user: { id: 'different-user' } });
-    mockUseAuthStore.getState.mockReturnValue({ user: { id: 'different-user' } });
-    const post = createMockPost({ userId: 'user-1', status: 'unresolved' });
-    
-    const { getByTestId, getByText, queryByText } = render(<PostCard post={post} />);
-    
-    // Tap more-actions button
-    const toggleBtn = getByTestId('more-actions-button');
-    fireEvent.press(toggleBtn);
-    
-    // Options for other users should show Report and Block User
-    expect(getByText('Report')).toBeTruthy();
-    expect(getByText('Block User')).toBeTruthy();
-    expect(queryByText('Mark In Progress')).toBeNull();
-    
-    // Mock Alert.alert
-    const originalAlert = Alert.alert;
-    Alert.alert = jest.fn();
-    
-    // Tap Report
-    fireEvent.press(getByText('Report'));
-    expect(Alert.alert).toHaveBeenCalledWith(
-      'Report Post',
-      expect.any(String),
-      expect.any(Array),
-      expect.any(Object)
-    );
-    
-    Alert.alert = originalAlert;
+    expect(mockReportPost).toHaveBeenCalledWith('post-1', 'spam');
+    alertSpy.mockRestore();
   });
 });

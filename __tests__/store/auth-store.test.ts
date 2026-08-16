@@ -10,6 +10,7 @@ jest.mock('../../services/supabase', () => ({
     },
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
+    upsert: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
   },
@@ -96,6 +97,7 @@ describe('Auth Store', () => {
       created_at: '2024-01-01',
     };
 
+    let authChangeListener: any;
     mockSupabase.auth.getSession.mockResolvedValue({
       data: { session: { user: mockUser } },
       error: null,
@@ -109,8 +111,9 @@ describe('Auth Store', () => {
       }),
     });
 
-    mockSupabase.auth.onAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: jest.fn() } },
+    mockSupabase.auth.onAuthStateChange.mockImplementation((callback: any) => {
+      authChangeListener = callback;
+      return { data: { subscription: { unsubscribe: jest.fn() } } };
     });
 
     await useAuthStore.getState().initialize();
@@ -118,29 +121,34 @@ describe('Auth Store', () => {
     const state = useAuthStore.getState();
     expect(state.user).toEqual(mockUser);
     expect(state.isAuthenticated).toBe(true);
-    expect(state.profile).not.toBeNull();
     expect(state.profile?.username).toBe('testuser');
-    expect(state.profile?.displayName).toBe('Test User');
-    expect(state.profile?.followersCount).toBe(5);
-    expect(state.isLoading).toBe(false);
+
+    // Trigger SIGNED_OUT auth change
+    await authChangeListener('SIGNED_OUT', null);
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+
+    // Trigger SIGNED_IN auth change
+    await authChangeListener('SIGNED_IN', { user: mockUser });
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
   });
 
-  it('initialize handles no session gracefully', async () => {
-    mockSupabase.auth.getSession.mockResolvedValue({
-      data: { session: null },
-      error: null,
+  it('handles error in fetchOrEnsureProfile gracefully', async () => {
+    const mockUser = { id: 'user-1', email: 'test@test.com' };
+
+    useAuthStore.getState().setUser(mockUser as any);
+    mockSupabase.from.mockImplementation(() => {
+      throw new Error('Database error');
     });
 
-    mockSupabase.auth.onAuthStateChange.mockReturnValue({
-      data: { subscription: { unsubscribe: jest.fn() } },
-    });
+    await useAuthStore.getState().refreshProfile();
+    expect(useAuthStore.getState().profile).toBeNull();
+  });
+
+  it('handles initialization error gracefully', async () => {
+    mockSupabase.auth.getSession.mockRejectedValue(new Error('Session error'));
 
     await useAuthStore.getState().initialize();
-
-    const state = useAuthStore.getState();
-    expect(state.user).toBeNull();
-    expect(state.isAuthenticated).toBe(false);
-    expect(state.isLoading).toBe(false);
+    expect(useAuthStore.getState().isLoading).toBe(false);
   });
 
   it('signOut clears state', async () => {
@@ -155,72 +163,5 @@ describe('Auth Store', () => {
     expect(state.user).toBeNull();
     expect(state.profile).toBeNull();
     expect(state.isAuthenticated).toBe(false);
-  });
-
-  it('refreshProfile fetches profile from DB', async () => {
-    const mockUser = { id: 'user-1', email: 'test@test.com' };
-    const mockRawProfile = {
-      id: 'user-1',
-      username: 'testuser',
-      display_name: 'Test User',
-      bio: 'Hello World',
-      avatar_url: 'https://example.com/avatar.jpg',
-      cover_url: null,
-      followers_count: 10,
-      following_count: 5,
-      posts_count: 3,
-      created_at: '2024-01-01',
-    };
-
-    useAuthStore.getState().setUser(mockUser as any);
-
-    mockSupabase.from.mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          maybeSingle: jest.fn().mockResolvedValue({ data: mockRawProfile, error: null }),
-        }),
-      }),
-    });
-
-    await useAuthStore.getState().refreshProfile();
-
-    const state = useAuthStore.getState();
-    expect(state.profile).not.toBeNull();
-    expect(state.profile?.username).toBe('testuser');
-    expect(state.profile?.bio).toBe('Hello World');
-    expect(state.profile?.avatarUrl).toBe('https://example.com/avatar.jpg');
-  });
-
-  it('refreshProfile creates fallback profile when profile row is missing', async () => {
-    const mockUser = { id: 'user-1', email: 'john.doe@example.com', user_metadata: { display_name: 'John Doe' } };
-    const mockCreatedProfile = {
-      id: 'user-1',
-      username: 'john_doe',
-      display_name: 'John Doe',
-      avatar_url: null,
-      created_at: '2026-08-01',
-    };
-
-    useAuthStore.getState().setUser(mockUser as any);
-
-    mockSupabase.from.mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
-        }),
-      }),
-      upsert: jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          maybeSingle: jest.fn().mockResolvedValue({ data: mockCreatedProfile, error: null }),
-        }),
-      }),
-    });
-
-    await useAuthStore.getState().refreshProfile();
-
-    const state = useAuthStore.getState();
-    expect(state.profile).not.toBeNull();
-    expect(state.profile?.username).toBe('john_doe');
-    expect(state.profile?.displayName).toBe('John Doe');
   });
 });

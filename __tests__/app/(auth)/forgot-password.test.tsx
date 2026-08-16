@@ -64,6 +64,20 @@ describe('Forgot Password Screen', () => {
     alertSpy.mockRestore();
   });
 
+  it('shows error alert when email format is invalid', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByPlaceholderText, getByText } = render(<ForgotPasswordScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('you@example.com'), 'invalidemail');
+
+    await act(async () => {
+      fireEvent.press(getByText('Send Reset Link'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith('Error', 'Please enter a valid email address');
+    alertSpy.mockRestore();
+  });
+
   it('calls resetPasswordForEmail on valid input', async () => {
     mockSupabase.auth.resetPasswordForEmail.mockResolvedValue({ error: null });
 
@@ -80,9 +94,16 @@ describe('Forgot Password Screen', () => {
     });
   });
 
-  it('shows success alert after sending reset link', async () => {
+  it('shows success alert and navigates to login when OK pressed', async () => {
     mockSupabase.auth.resetPasswordForEmail.mockResolvedValue({ error: null });
-    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const replaceMock = jest.fn();
+    mockRouter.mockReturnValue({ push: jest.fn(), replace: replaceMock });
+
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((title, msg, buttons) => {
+      if (buttons && buttons[0] && buttons[0].onPress) {
+        buttons[0].onPress();
+      }
+    });
 
     const { getByPlaceholderText, getByText } = render(<ForgotPasswordScreen />);
 
@@ -97,6 +118,7 @@ describe('Forgot Password Screen', () => {
       'Password reset link has been sent to your email. Check your inbox.',
       expect.any(Array)
     );
+    expect(replaceMock).toHaveBeenCalledWith('/login');
     alertSpy.mockRestore();
   });
 

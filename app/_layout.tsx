@@ -8,7 +8,9 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth-store';
 import { useNotificationStore } from '../store/notification-store';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, LogBox } from 'react-native';
+
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 
 const queryClient = new QueryClient();
 

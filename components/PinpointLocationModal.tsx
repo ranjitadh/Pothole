@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Pressable, ActivityIndicator, StyleSheet, Platform, Keyboard, Alert, Dimensions, BackHandler } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+let MapView: any = null;
+let Marker: any = null;
+if (Platform.OS !== 'web') {
+  try {
+    const MapsModule = require('react-native-maps');
+    MapView = MapsModule.default;
+    Marker = MapsModule.Marker;
+  } catch (e) {
+    // Native maps fallback
+  }
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Search, Locate, Maximize2, MapPin, AlertTriangle } from 'lucide-react-native';
 import * as Location from 'expo-location';

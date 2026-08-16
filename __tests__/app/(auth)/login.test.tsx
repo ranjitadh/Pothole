@@ -34,9 +34,11 @@ jest.mock('lucide-react-native', () => ({
 
 import { supabase } from '../../../services/supabase';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 const mockSupabase = supabase as any;
 const mockRouter = useRouter as jest.Mock;
+const mockWebBrowser = WebBrowser as any;
 
 describe('Login Screen', () => {
   beforeEach(() => {
@@ -152,8 +154,16 @@ describe('Login Screen', () => {
     expect(push).toHaveBeenCalledWith('/forgot-password');
   });
 
-  it('calls Google login handler on Google button press', async () => {
-    mockSupabase.auth.signInWithOAuth.mockResolvedValue({ data: { url: 'https://google.com/auth' }, error: null });
+  it('calls Google login handler and processes session tokens', async () => {
+    mockSupabase.auth.signInWithOAuth.mockResolvedValue({
+      data: { url: 'https://google.com/auth' },
+      error: null,
+    });
+    mockWebBrowser.openAuthSessionAsync.mockResolvedValue({
+      type: 'success',
+      url: 'pothole://#access_token=token123&refresh_token=refresh123',
+    });
+    mockSupabase.auth.setSession.mockResolvedValue({ data: {}, error: null });
 
     const { getByText } = render(<LoginScreen />);
 
@@ -161,6 +171,43 @@ describe('Login Screen', () => {
       fireEvent.press(getByText('Sign in with Google'));
     });
 
-    expect(mockSupabase.auth.signInWithOAuth).toHaveBeenCalled();
+    expect(mockSupabase.auth.setSession).toHaveBeenCalledWith({
+      access_token: 'token123',
+      refresh_token: 'refresh123',
+    });
+  });
+
+  it('shows error alert when Google login url is missing tokens', async () => {
+    mockSupabase.auth.signInWithOAuth.mockResolvedValue({
+      data: { url: 'https://google.com/auth' },
+      error: null,
+    });
+    mockWebBrowser.openAuthSessionAsync.mockResolvedValue({
+      type: 'success',
+      url: 'pothole://#error=access_denied',
+    });
+
+    const alertSpy = jest.spyOn(Alert, 'alert');
+    const { getByText } = render(<LoginScreen />);
+
+    await act(async () => {
+      fireEvent.press(getByText('Sign in with Google'));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Google Sign In Error',
+      'Authentication tokens missing in callback URL'
+    );
+    alertSpy.mockRestore();
+  });
+
+  it('triggers quick fill test credentials in dev mode', () => {
+    const { getByText, getByPlaceholderText } = render(<LoginScreen />);
+
+    const quickFillBtn = getByText('⚡ Quick Fill Test Credentials');
+    fireEvent.press(quickFillBtn);
+
+    const emailInput = getByPlaceholderText('you@example.com');
+    expect(emailInput.props.value).toBeTruthy();
   });
 });

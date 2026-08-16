@@ -114,6 +114,11 @@ function getProjectId(): string | undefined {
  */
 export async function getExpoPushToken(): Promise<string | null> {
   if (Platform.OS === 'web') return null;
+  // Expo SDK 53+ removed remote push notifications from Expo Go sandbox.
+  if (Constants.appOwnership === 'expo' || (Constants as any).executionEnvironment === 'storeClient') {
+    console.warn('[Notifications] Push tokens require a standalone or development build (not available in Expo Go sandbox).');
+    return null;
+  }
   try {
     const projectId = getProjectId();
     const tokenData = await Notifications.getExpoPushTokenAsync(

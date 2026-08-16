@@ -13,29 +13,36 @@ jest.mock('../../../services/post', () => ({
     { id: 'u1', username: 'ranjit', display_name: 'ranjit', followers_count: 0 },
     { id: 'u2', username: 'ranjitadh24', display_name: 'Ranjit Adhikari', followers_count: 0 },
   ]),
-  searchPosts: jest.fn().mockResolvedValue([]),
-  searchHashtags: jest.fn().mockResolvedValue([]),
+  searchPosts: jest.fn().mockResolvedValue([
+    {
+      id: 'p1',
+      userId: 'u1',
+      text: 'Search post pothole',
+      visibility: 'public',
+      likesCount: 1,
+      commentsCount: 0,
+      sharesCount: 0,
+      isEdited: false,
+      createdAt: '2024-01-01',
+      status: 'unresolved',
+      author: { id: 'u1', username: 'ranjit', displayName: 'Ranjit', avatarUrl: null },
+      media: [],
+      location: null,
+      isLiked: false,
+      isSaved: false,
+    },
+  ]),
+  searchHashtags: jest.fn().mockResolvedValue([
+    { id: 'h1', name: 'pothole', posts_count: 12 },
+  ]),
 }));
 
-jest.mock('lucide-react-native', () => ({
-  Search: 'Search',
-  Sun: 'Sun',
-  MapPin: 'MapPin',
-  X: 'X',
-  Hash: 'Hash',
-  Heart: 'Heart',
-  MessageCircle: 'MessageCircle',
-  Bookmark: 'Bookmark',
-  AlertTriangle: 'AlertTriangle',
-  MoreHorizontal: 'MoreHorizontal',
-  Moon: 'Moon',
-}));
+jest.mock('lucide-react-native', () => new Proxy({}, { get: (_, prop) => prop }));
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }),
 }));
 
-// Mock PostCard to prevent rendering issues in explore page tests
 jest.mock('../../../components/PostCard', () => {
   const { Text } = require('react-native');
   return {
@@ -57,7 +64,7 @@ describe('Search Screen (formerly Explore)', () => {
   });
 
   it('triggers user query and renders user profiles results', async () => {
-    const { getByPlaceholderText, getByText, findByText } = render(<ExploreScreen />);
+    const { getByPlaceholderText, findByText } = render(<ExploreScreen />);
     
     const input = getByPlaceholderText('Search posts, users or hashtags...');
     
@@ -65,11 +72,32 @@ describe('Search Screen (formerly Explore)', () => {
       fireEvent.changeText(input, 'ranjit');
     });
 
-    // Wait for the debounced search or manual query to resolve
     const user1 = await findByText('ranjit');
     const user2 = await findByText('Ranjit Adhikari');
     
     expect(user1).toBeTruthy();
     expect(user2).toBeTruthy();
+  });
+
+  it('switches search tabs', async () => {
+    const { getByPlaceholderText, getByText, findByText } = render(<ExploreScreen />);
+    
+    const input = getByPlaceholderText('Search posts, users or hashtags...');
+    
+    await act(async () => {
+      fireEvent.changeText(input, 'pothole');
+    });
+
+    const postsTab = getByText(/Posts \(/);
+    await act(async () => {
+      fireEvent.press(postsTab);
+    });
+
+    const hashtagsTab = getByText(/Hashtags \(/);
+    await act(async () => {
+      fireEvent.press(hashtagsTab);
+    });
+
+    expect(await findByText('#pothole')).toBeTruthy();
   });
 });
