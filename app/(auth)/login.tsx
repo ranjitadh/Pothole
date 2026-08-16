@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, Styl
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../services/supabase';
-import { Globe } from 'lucide-react-native';
+import { GoogleIcon } from '../../components/GoogleIcon';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { TEST_USER } from '../../constants/TestCredentials';
@@ -165,7 +165,7 @@ export default function LoginScreen() {
           disabled={isLoading}
           onPress={handleGoogleLogin}
         >
-          <Globe size={18} color="#4285F4" />
+          <GoogleIcon size={18} />
           <Text style={styles.googleText}>Sign in with Google</Text>
         </TouchableOpacity>
 
