@@ -130,6 +130,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           locationAlwaysAndWhenInUsePermission:
             'Allow Pothole to show your location on the map.',
+          androidGoogleMapsApiKey: mapsApiKey,
         },
       ],
       'expo-web-browser',
