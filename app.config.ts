@@ -95,7 +95,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           image: './assets/images/splash-icon.png',
           resizeMode: 'contain',
           backgroundColor: '#ffffff',
-          imageWidth: 200,
+          imageWidth: 120,
+          dark: {
+            image: './assets/images/splash-icon.png',
+            backgroundColor: '#0f172a',
+          },
         },
       ],
       'expo-secure-store',
@@ -162,7 +166,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     updates: {
       url: 'https://u.expo.dev/f4579e84-439d-4b0a-b4c2-4c9e6068ac62',
       fallbackToCacheTimeout: 30000,
-      checkAutomatically: 'ON_LOAD',
+      checkAutomatically: 'NEVER',
     },
 
     owner: 'ranjitadh',
