@@ -31,8 +31,6 @@ yarn-error.*
 *.pem
 
 # local env files
-.env
-.env*
 .env*.local
 
 # typescript
@@ -47,3 +45,4 @@ google-services-key.json
 *.keystore
 coverage/
 play-console-503421-a7ec96c140af.json
+config.bat
